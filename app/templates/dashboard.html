@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>仪表盘</h1>
+    
+    <!-- 统计卡片 -->
+    <div class="grid">
+        <div class="row">
+            <div class="column column-25">
+                <div class="card">
+                    <h4 class="text-center">{{ total_users }}</h4>
+                    <p class="text-center">总用户数</p>
+                </div>
+            </div>
+            <div class="column column-25">
+                <div class="card">
+                    <h4 class="text-center">{{ total_orders }}</h4>
+                    <p class="text-center">总订单数</p>
+                </div>
+            </div>
+            <div class="column column-25">
+                <div class="card">
+                    <h4 class="text-center">{{ total_codes }}</h4>
+                    <p class="text-center">总卡密数</p>
+                </div>
+            </div>
+            <div class="column column-25">
+                <div class="card">
+                    <h4 class="text-center">{{ total_applications }}</h4>
+                    <p class="text-center">API申请次数</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 系统信息 -->
+    <div class="card">
+        <div class="card-header">
+            <h2>系统信息</h2>
+        </div>
+        <div class="grid">
+            <div class="row">
+                <div class="column column-33">
+                    <p>当前时间：{{ current_time }}</p>
+                </div>
+                <div class="column column-33">
+                    <p>数据库路径：{{ db_path }}</p>
+                </div>
+                <div class="column column-33">
+                    <p>Flask 版本：{{ flask_version }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

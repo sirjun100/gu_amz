@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1 class="mb-4">🔑 API申请记录</h1>
+    
+    <!-- API申请记录列表 -->
+    <div class="card">
+        <div class="card-header">
+            <h2 class="h5 mb-0">申请记录列表</h2>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户ID</th>
+                        <th>手机号</th>
+                        <th>API ID</th>
+                        <th>API Hash</th>
+                        <th>创建时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for api in api_applications %}
+                        <tr>
+                            <td>{{ api.id }}</td>
+                            <td>{{ api.telegram_id }}</td>
+                            <td>{{ api.phone }}</td>
+                            <td>{{ api.api_id }}</td>
+                            <td>{{ api.api_hash }}</td>
+                            <td>{{ api.created_at }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- 分页控件 -->
+            {% if total_pages > 1 %}
+            <div style="margin-top: 20px; text-align: center;">
+                <nav>
+                    <ul style="display: inline-block; list-style: none; padding: 0;">
+                        <!-- 上一页 -->
+                        {% if page > 1 %}
+                        <li style="display: inline; margin-right: 5px;">
+                            <a href="{{ url_for('api', page=page-1) }}" class="button">上一页</a>
+                        </li>
+                        {% endif %}
+                        
+                        <!-- 页码 -->
+                        {% for p in range(1, total_pages + 1) %}
+                        <li style="display: inline; margin-right: 5px;">
+                            {% if p == page %}
+                            <a href="{{ url_for('api', page=p) }}" class="button button-primary">{{ p }}</a>
+                            {% else %}
+                            <a href="{{ url_for('api', page=p) }}" class="button">{{ p }}</a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                        
+                        <!-- 下一页 -->
+                        {% if page < total_pages %}
+                        <li style="display: inline; margin-right: 5px;">
+                            <a href="{{ url_for('api', page=page+1) }}" class="button">下一页</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                    显示 {{ ((page - 1) * per_page) + 1 }} 到 {{ min(page * per_page, total_applications) }} 条，共 {{ total_applications }} 条记录
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

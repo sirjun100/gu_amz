@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>订单管理</h1>
+    
+    <!-- 订单列表 -->
+    <div class="card">
+        <div class="card-header">
+            <h2>订单列表</h2>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>订单号</th>
+                    <th>用户ID</th>
+                    <th>金额</th>
+                    <th>支付方式</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>完成时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <tr>
+                        <td>{{ order.id }}</td>
+                        <td>{{ order.order_id }}</td>
+                        <td>{{ order.telegram_id }}</td>
+                        <td>{{ order.amount }}</td>
+                        <td>{{ order.payment_method }}</td>
+                        <td>
+                            {% if order.status == 'pending' %}
+                                <span style="color: orange;">待支付</span>
+                            {% elif order.status == 'completed' %}
+                                <span style="color: green;">已完成</span>
+                            {% elif order.status == 'cancelled' %}
+                                <span style="color: red;">已取消</span>
+                            {% else %}
+                                {{ order.status }}
+                            {% endif %}
+                        </td>
+                        <td>{{ order.created_at }}</td>
+                        <td>{{ order.completed_at or 'N/A' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- 分页控件 -->
+        {% if total_pages > 1 %}
+        <div style="margin-top: 20px; text-align: center;">
+            <nav>
+                <ul style="display: inline-block; list-style: none; padding: 0;">
+                    <!-- 上一页 -->
+                    {% if page > 1 %}
+                    <li style="display: inline; margin-right: 5px;">
+                        <a href="{{ url_for('orders', page=page-1) }}" class="button">上一页</a>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- 页码 -->
+                    {% for p in range(1, total_pages + 1) %}
+                    <li style="display: inline; margin-right: 5px;">
+                        {% if p == page %}
+                        <a href="{{ url_for('orders', page=p) }}" class="button button-primary">{{ p }}</a>
+                        {% else %}
+                        <a href="{{ url_for('orders', page=p) }}" class="button">{{ p }}</a>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                    
+                    <!-- 下一页 -->
+                    {% if page < total_pages %}
+                    <li style="display: inline; margin-right: 5px;">
+                        <a href="{{ url_for('orders', page=page+1) }}" class="button">下一页</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                显示 {{ ((page - 1) * per_page) + 1 }} 到 {{ min(page * per_page, total_orders) }} 条，共 {{ total_orders }} 条记录
+            </p>
+        </div>
+        {% endif %}
+    </div>
+{% endblock %}

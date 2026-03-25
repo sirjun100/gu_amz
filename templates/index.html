@@ -1,0 +1,263 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram API 自动注册工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f0f8ff;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        .error {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffebee;
+            border-radius: 4px;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+        .success {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #e8f5e8;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Telegram API 自动注册工具</h1>
+        
+        <form id="register-form">
+            <div class="form-group">
+                <label for="phone">手机号（国际格式）</label>
+                <input type="text" id="phone" name="phone" placeholder="例如: +8613800138000" required>
+            </div>
+            
+            <button type="button" id="send-code-btn">发送验证码</button>
+            
+            <div id="code-section" style="display: none; margin-top: 20px;">
+                <div class="form-group">
+                    <label for="code">验证码</label>
+                    <input type="text" id="code" name="code" placeholder="请输入收到的验证码" required>
+                </div>
+                <button type="button" id="login-btn">登录并获取 API 信息</button>
+            </div>
+        </form>
+        
+        <div id="result" class="result" style="display: none;"></div>
+        <div id="message"></div>
+    </div>
+    
+    <script>
+        document.getElementById('send-code-btn').addEventListener('click', async function() {
+            const phone = document.getElementById('phone').value.trim();
+            const messageDiv = document.getElementById('message');
+            
+            if (!phone) {
+                messageDiv.innerHTML = '<div class="error">请输入手机号</div>';
+                return;
+            }
+            
+            if (!phone.startsWith('+')) {
+                messageDiv.innerHTML = '<div class="error">手机号必须以 + 开头（国际格式）</div>';
+                return;
+            }
+            
+            messageDiv.innerHTML = '<div class="success">正在发送验证码，请稍候...</div>';
+            
+            try {
+                const response = await fetch('/send_code', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `phone=${encodeURIComponent(phone)}`
+                });
+                
+                const result = await response.json();
+                if (result.ok) {
+                    messageDiv.innerHTML = '<div class="success">' + result.message + '</div>';
+                    document.getElementById('code-section').style.display = 'block';
+                } else {
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="error">发生错误，请重试</div>';
+                console.error(error);
+            }
+        });
+        
+        document.getElementById('login-btn').addEventListener('click', async function() {
+            const phone = document.getElementById('phone').value.trim();
+            const code = document.getElementById('code').value.trim();
+            const messageDiv = document.getElementById('message');
+            const resultDiv = document.getElementById('result');
+            
+            if (!code) {
+                messageDiv.innerHTML = '<div class="error">请输入验证码</div>';
+                return;
+            }
+            
+            messageDiv.innerHTML = '<div class="success">正在登录，请稍候...</div>';
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `phone=${encodeURIComponent(phone)}&code=${encodeURIComponent(code)}`
+                });
+                
+                const result = await response.json();
+                if (result.ok) {
+                    messageDiv.innerHTML = '<div class="success">注册成功！</div>';
+                    resultDiv.innerHTML = `
+                        <h3>API 信息</h3>
+                        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <p style="margin: 0; flex: 1;"><strong>api_id:</strong> <span id="api-id">${result.api_id}</span></p>
+                        </div>
+                        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <p style="margin: 0; flex: 1;"><strong>api_hash:</strong> <span id="api-hash">${result.api_hash}</span></p>
+                        </div>
+                        <p><strong>app_title:</strong> ${result.app_title}</p>
+                        <p>API 其他信息访问 <a href="https://my.telegram.org" target="_blank">https://my.telegram.org</a> 查看</p>
+                        <div style="margin-top: 20px;">
+                            <button onclick="copyAllInfo('${result.api_id}', '${result.api_hash}', '${result.app_title}')" style="padding: 10px 20px; font-size: 14px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">一键复制所有信息</button>
+                        </div>
+                    `;
+                    resultDiv.style.display = 'block';
+                } else {
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div class="error">发生错误，请重试</div>';
+                console.error(error);
+            }
+        });
+        
+        function copyAllInfo(apiId, apiHash, appTitle) {
+            // 构建纯文本格式的信息
+            const info = `api_id: ${apiId}
+api_hash: ${apiHash}
+app_title: ${appTitle}`;
+            
+            // 兼容性处理，支持 Safari 和 Chrome 浏览器
+            if (navigator.clipboard && window.isSecureContext) {
+                // 现代浏览器
+                navigator.clipboard.writeText(info)
+                    .then(() => {
+                        showCopySuccess();
+                    })
+                    .catch(err => {
+                        console.error('复制失败:', err);
+                        fallbackCopyTextToClipboard(info);
+                    });
+            } else {
+                // 兼容旧浏览器
+                fallbackCopyTextToClipboard(info);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text) {
+            // 创建临时文本区域
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            
+            // 确保文本区域不在屏幕上可见
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            
+            // 选择文本
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                // 执行复制命令
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showCopySuccess();
+                } else {
+                    console.error('复制失败');
+                }
+            } catch (err) {
+                console.error('复制失败:', err);
+            } finally {
+                // 清理临时文本区域
+                document.body.removeChild(textArea);
+            }
+        }
+        
+        function showCopySuccess() {
+            // 显示复制成功的提示
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = '<div class="success">一键复制成功！</div>';
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
