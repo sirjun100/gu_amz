@@ -1,14 +1,21 @@
-import urllib.parse
+from __future__ import annotations
+
 import hashlib
-import requests
-import os
 import logging
+import urllib.parse
+
+import requests
+
 
 class OkayPay:
     def __init__(self, shop_id=None, token=None):
-        self.id = int(shop_id or os.getenv("OKPAY_ID", ""))
-        self.token = token or os.getenv("OKPAY_TOKEN", "")
-        self.base_url = 'https://api.okaypay.me/shop/'
+        try:
+            sid = str(shop_id).strip() if shop_id is not None else ""
+            self.id = int(sid) if sid.isdigit() else 0
+        except (TypeError, ValueError):
+            self.id = 0
+        self.token = (token or "").strip() if token is not None else ""
+        self.base_url = "https://api.okaypay.me/shop/"
         
     def sign(self, data):
         data['id'] = self.id
@@ -35,14 +42,22 @@ class OkayPay:
         
         return signed_dict
     
-    def get_pay_link(self, unique_id, amount, coin="USDT", name="Telegram API"):
-        url = self.base_url + 'payLink'
+    def get_pay_link(
+        self,
+        unique_id,
+        amount,
+        coin="USDT",
+        name="Telegram API",
+        return_url: str | None = None,
+    ):
+        url = self.base_url + "payLink"
+        ret = (return_url or "").strip() or "https://t.me/"
         params = {
-            'unique_id': unique_id,
-            'name': name,
-            'amount': amount,
-            'coin': coin,
-            'return_url': os.getenv("OKPAY_RETURN_URL", "https://t.me/r7tg1")
+            "unique_id": unique_id,
+            "name": name,
+            "amount": amount,
+            "coin": coin,
+            "return_url": ret,
         }
         
         # 打印初始化信息

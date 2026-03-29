@@ -2,7 +2,12 @@ httpx
 python-telegram-bot
 python-dotenv
 beautifulsoup4
-flask
+fastapi
+uvicorn[standard]
+python-multipart
+PyJWT
+pymysql
+werkzeug
 asgiref
 pandas
 pyrogram
