@@ -1,0 +1,14 @@
+[Unit]
+Description=TGAPI-管理后台
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/tg-api
+ExecStart=/usr/bin/python3 /root/tg-api/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

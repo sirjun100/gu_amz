@@ -18,36 +18,65 @@
    ```  
    确认本机可访问：`curl -sI http://127.0.0.1:5080/`
 
-## 2. 接入 Nginx（Debian / Ubuntu 常见做法）
+## 2. 接入 Nginx
+
+不同发行版目录不一样：**CentOS / Rocky / AlmaLinux / RHEL 没有 `sites-enabled`**，请用下面的 **2.1**；**Debian / Ubuntu** 用 **2.2**。
+
+### 2.1 CentOS 9 / Rocky / AlmaLinux / RHEL（推荐：`conf.d`）
 
 1. 安装 Nginx（若尚未安装）：  
-   `sudo apt update && sudo apt install -y nginx`
-
-2. 把本仓库里的配置挂到 Nginx（二选一）：
-
-   **方式 A：软链到 `sites-enabled`（推荐）**  
    ```bash
-   sudo ln -sf /path/to/tg-api/nginx/nginx.conf /etc/nginx/sites-enabled/tg-api.conf
-   sudo rm -f /etc/nginx/sites-enabled/default   # 若 80 端口被 default 占用且你不需要默认站，可删
+   sudo dnf install -y nginx
+   sudo systemctl enable --now nginx
    ```
 
-   **方式 B：在 `nginx.conf` 的 `http { }` 里 include**  
-   在 `/etc/nginx/nginx.conf` 的 `http` 块中增加一行（路径改成你的实际路径）：  
-   `include /path/to/tg-api/nginx/nginx.conf;`
+2. 把项目里的配置链到 **`/etc/nginx/conf.d/`**（该目录默认会被主配置 `include`）：  
+   ```bash
+   sudo ln -sf /root/tg-api/nginx/nginx.conf /etc/nginx/conf.d/tg-api.conf
+   ```  
+   路径请改成你机器上真实项目路径（上例假设项目在 `/root/tg-api`）。
 
-3. 检查并重载：  
+3. 若 **`/etc/nginx/conf.d/` 里还有 `default.conf`** 且也监听 80，会与 `server_name` 冲突。可改名禁用默认站：  
+   ```bash
+   sudo mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.bak
+   ```
+
+4. 检查并重载：  
    ```bash
    sudo nginx -t
    sudo systemctl reload nginx
    ```
 
-4. 浏览器访问：`http://tgapi.tgitellyou.com/`（应打开管理后台）。
+5. 防火墙（CentOS 常用 **firewalld**）：  
+   ```bash
+   sudo firewall-cmd --permanent --add-service=http
+   sudo firewall-cmd --permanent --add-service=https
+   sudo firewall-cmd --reload
+   ```
+
+6. 浏览器访问：`http://tgapi.tgitellyou.com/`。
+
+### 2.2 Debian / Ubuntu（`sites-enabled`）
+
+1. 安装 Nginx：  
+   `sudo apt update && sudo apt install -y nginx`
+
+2. 若系统里**没有** `sites-enabled`，可先建目录再在主配置里 `include`，或直接用与 CentOS 相同做法：软链到 **`/etc/nginx/conf.d/tg-api.conf`**。
+
+3. 若使用经典 `sites-enabled`：  
+   ```bash
+   sudo ln -sf /path/to/tg-api/nginx/nginx.conf /etc/nginx/sites-enabled/tg-api.conf
+   ```  
+   并确认 `/etc/nginx/nginx.conf` 的 `http {}` 里有：`include /etc/nginx/sites-enabled/*;`（部分版本需自行添加）。
+
+4. `sudo nginx -t && sudo systemctl reload nginx`。
 
 ## 3. HTTPS（可选）
 
 1. 用 Certbot 等申请证书（示例）：  
+   - Debian/Ubuntu：`sudo apt install -y certbot python3-certbot-nginx`  
+   - CentOS 9：`sudo dnf install -y certbot python3-certbot-nginx`  
    ```bash
-   sudo apt install -y certbot python3-certbot-nginx
    sudo certbot --nginx -d tgapi.tgitellyou.com
    ```  
    Certbot 往往会自动改 Nginx；若你手动维护，可把 `nginx.conf` 里注释掉的 **443** `server` 段取消注释，并把 `ssl_certificate` / `ssl_certificate_key` 改成实际证书路径。
@@ -56,8 +85,8 @@
 
 ## 4. 防火墙
 
-若服务器启用了防火墙，需放行 **80**（及 **443**）：  
-例如 UFW：`sudo ufw allow 'Nginx Full'` 或分别 `allow 80`、`allow 443`。
+- **firewalld（CentOS 等）**：见上文 2.1 第 5 步。  
+- **UFW（Ubuntu）**：`sudo ufw allow 'Nginx Full'` 或分别放行 80、443。
 
 ## 5. 修改端口时
 
