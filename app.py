@@ -9,6 +9,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "src.admin_app:app",
         host="0.0.0.0",
-        port=int(__import__("os").getenv("PORT", "5002")),
+        port=int(__import__("os").getenv("PORT", "5080")),
         reload=True,
     )
