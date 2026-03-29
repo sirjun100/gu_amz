@@ -377,6 +377,14 @@ async def run_bot():
                 reply_markup=InlineKeyboardMarkup(keyboard),
             )
             return CARD_CODE
+
+        elif query.data == "card_code_continue":
+            keyboard = [[InlineKeyboardButton(_(user_id, 'back_to_menu'), callback_data="back_to_menu")]]
+            await query.edit_message_text(
+                _(user_id, 'card_code_title'),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+            return CARD_CODE
         
         elif query.data == "help":
             # 进入帮助说明页面
@@ -623,8 +631,15 @@ async def run_bot():
             credits_add = max(1, int(code_info[2]))
             db.increment_apply_credits(user_id, credits_add)
 
-            await update.message.reply_text(_(user_id, "code_success", credits=credits_add))
-            return ConversationHandler.END
+            success_kb = [
+                [InlineKeyboardButton(_(user_id, "card_code_continue"), callback_data="card_code_continue")],
+                [InlineKeyboardButton(_(user_id, "back_to_menu"), callback_data="back_to_menu")],
+            ]
+            await update.message.reply_text(
+                _(user_id, "code_success", credits=credits_add),
+                reply_markup=InlineKeyboardMarkup(success_kb),
+            )
+            return CARD_CODE
         else:
             await update.message.reply_text(_(user_id, 'code_failed'))
             return CARD_CODE

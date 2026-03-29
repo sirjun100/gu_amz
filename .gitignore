@@ -1,0 +1,31 @@
+# 环境变量（含密钥，切勿提交）
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# 前端 / 包管理
+node_modules/
+admin/node_modules/
+
+# 系统与 IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 日志与本地数据（按需取消注释）
+# *.log
+# output/
