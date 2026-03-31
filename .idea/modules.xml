@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/tg-api.iml" filepath="$PROJECT_DIR$/.idea/tg-api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/usbclient/usbclient.iml" filepath="$PROJECT_DIR$/usbclient/usbclient.iml" />
     </modules>
   </component>
 </project>

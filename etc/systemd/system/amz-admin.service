@@ -1,0 +1,16 @@
+[Unit]
+Description=亚马逊运维系统管理后台
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/amz
+Environment=PORT=5090
+ExecStart=/usr/bin/python3 /root/amz/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

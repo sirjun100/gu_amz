@@ -13,13 +13,13 @@ export default defineConfig(({ command }) => ({
     port: 3000,
     proxy: {
       '/api/v1': {
-        target: 'http://127.0.0.1:5002',
+        target: 'http://127.0.0.1:5090',
         changeOrigin: true,
       },
     },
   },
   build: {
-    // 输出到仓库根目录 static/，与 FastAPI app.py 静态托管一致
+    // npm run build → 仓库根目录 static/，与 app.py / src.admin_app 中 AMZ_STATIC_ROOT 一致
     outDir: path.resolve(__dirname, '../static'),
     assetsDir: 'assets',
     emptyDir: true,

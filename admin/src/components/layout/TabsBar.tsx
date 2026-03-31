@@ -20,20 +20,25 @@ interface TabsStore {
 }
 
 const routeTitles: Record<string, string> = {
-  '/dashboard': '仪表盘',
-  '/users': '用户管理',
-  '/orders': '购买订单',
-  '/applications': '申请记录',
-  '/codes': '卡密管理',
+  '/tasks': '任务中心',
+  '/devices': '设备管理',
+  '/keywords': '随机关键词',
+  '/tasks/search-click': '搜索产品点击',
+  '/tasks/related-click': '相关产品点击',
+  '/tasks/similar-click': '同类产品点击',
+  '/tasks/register': '自动注册任务',
+  '/tasks/saved-records': '任务数据归档',
+  '/addresses': '地址管理',
   '/settings': '系统设置',
+  '/tools/task-report-parse': '上报日志解析',
 }
 
-const HOME_PATH = '/dashboard'
+const HOME_PATH = '/tasks'
 
 export const useTabsStore = create<TabsStore>()(
   persist(
     (set, get) => ({
-      tabs: [{ path: HOME_PATH, title: '仪表盘', closable: false }],
+      tabs: [{ path: HOME_PATH, title: '任务中心', closable: false }],
       activeTab: HOME_PATH,
 
       addTab: (tab) => {
@@ -59,7 +64,7 @@ export const useTabsStore = create<TabsStore>()(
       setActiveTab: (path) => set({ activeTab: path }),
     }),
     {
-      name: 'tabs-storage-tgapi-v2',
+      name: 'tabs-storage-amz-ops-v2',
       storage: createJSONStorage(() => localStorage),
     }
   )

@@ -1,4 +1,13 @@
-export type { MeResponse, BotConfig, Paginated, StatsResponse } from './tg'
+export type {
+  MeResponse,
+  PaginatedTasks,
+  TaskCenterDetail,
+  DeviceOption,
+  DeviceRow,
+  KeywordRow,
+  AddressRow,
+  TaskRow,
+} from './amz'
 
 export interface User {
   user_id: number

@@ -2,28 +2,38 @@ import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  LayoutDashboard,
-  Users,
-  CreditCard,
-  KeyRound,
-  Ticket,
-  Settings,
+  ListTodo,
   Menu,
   X,
   PanelLeftClose,
   PanelLeft,
-  MessageSquare,
+  Boxes,
+  Smartphone,
+  Shuffle,
+  MousePointerClick,
+  Link2,
+  Copy,
+  UserPlus,
+  MapPin,
+  FileJson2,
+  Settings,
+  Archive,
 } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
 
 const navItems = [
-  { icon: LayoutDashboard, label: '仪表盘', path: '/dashboard' },
-  { icon: Users, label: '用户管理', path: '/users' },
-  { icon: CreditCard, label: '购买订单', path: '/orders' },
-  { icon: KeyRound, label: '申请记录', path: '/applications' },
-  { icon: Ticket, label: '卡密管理', path: '/codes' },
+  { icon: ListTodo, label: '任务中心', path: '/tasks' },
+  { icon: Smartphone, label: '设备管理', path: '/devices' },
+  { icon: Shuffle, label: '随机关键词', path: '/keywords' },
+  { icon: MousePointerClick, label: '搜索产品点击', path: '/tasks/search-click' },
+  { icon: Link2, label: '相关产品点击', path: '/tasks/related-click' },
+  { icon: Copy, label: '同类产品点击', path: '/tasks/similar-click' },
+  { icon: UserPlus, label: '自动注册任务', path: '/tasks/register' },
+  { icon: Archive, label: '任务数据归档', path: '/tasks/saved-records' },
+  { icon: MapPin, label: '地址管理', path: '/addresses' },
   { icon: Settings, label: '系统设置', path: '/settings' },
+  { icon: FileJson2, label: '上报日志解析', path: '/tools/task-report-parse' },
 ]
 
 export function Sidebar() {
@@ -49,6 +59,7 @@ export function Sidebar() {
     return (
       <NavLink
         to={item.path}
+        end={item.path === '/tasks'}
         onClick={() => setSidebarMobileOpen(false)}
         title={!showLabel ? item.label : undefined}
         className={({ isActive }) =>
@@ -100,11 +111,11 @@ export function Sidebar() {
         >
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
-              <MessageSquare className="w-4 h-4 text-white" />
+              <Boxes className="w-4 h-4 text-white" />
             </div>
             {(sidebarMobileOpen || !sidebarCollapsed) && (
               <span className="font-semibold text-sm text-slate-900 dark:text-white whitespace-nowrap">
-                TG-API 管理台
+                亚马逊运维
               </span>
             )}
           </div>

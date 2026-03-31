@@ -1,65 +1,41 @@
-"""
-FastAPI 管理后台：/api/v1 与项目根目录 static/ 下的前端（index.html）。
-启动: python app.py 或 uvicorn src.admin_app:app --host 0.0.0.0 --port 5002
-"""
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import mimetypes
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import jwt
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .db import db
-from .paths import DATA_DIR, TRC20_QR_EXTS, TRC20_QR_PREFIX, delete_all_trc20_qr, ensure_data_dir, trc20_qr_image_path
+from .db import db, parse_task_params
+from .task_report_parse import parse_task_report_footer
+from .paths import STATIC_WEB_DIR, TASK_IMAGE_DIR, ensure_data_dir
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-# 前端构建产物目录：在 admin 目录执行 npm run build，输出到项目根下 static/
-STATIC = os.path.join(ROOT, "static")
+STATIC = STATIC_WEB_DIR
 
 JWT_ALG = "HS256"
 JWT_EXPIRE_DAYS = 7
 
 
 def _jwt_signing_key() -> bytes:
-    """HS256 建议密钥长度 ≥32 字节；短字符串经 SHA-256 派生，消除 InsecureKeyLengthWarning。"""
     raw = os.getenv("JWT_SECRET", "dev-change-JWT_SECRET-in-production").encode("utf-8")
     if len(raw) < 32:
         return hashlib.sha256(raw).digest()
     return raw
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
-ALLOWED_CONFIG_KEYS = frozenset(
-    {
-        "TRC20_ADDRESS",
-        "OKPAY_ID",
-        "OKPAY_TOKEN",
-        "OKPAY_PAYED",
-        "OKPAY_RETURN_URL",
-        "BOT_CUSTOM_MENU_JSON",
-        "APPLY_PACK_1_PRICE",
-        "APPLY_PACK_10_PRICE",
-        "APPLY_PACK_50_PRICE",
-        "APPLY_PACK_100_PRICE",
-        "TRON_MONITOR_ENABLED",
-        "TRONGRID_API_KEY",
-        "TRON_API_BASE",
-        "TRON_USDT_CONTRACT",
-        "TRON_POLL_SECONDS",
-        "TRON_MIN_CONFIRMATIONS",
-    }
-)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
 def _create_token(user_id: int, username: str, is_admin: bool) -> str:
@@ -111,14 +87,7 @@ class MeResponse(BaseModel):
     is_admin: bool
 
 
-class StatsResponse(BaseModel):
-    total_users: int
-    total_orders: int
-    total_codes: int
-    total_applications: int
-
-
-class Paginated(BaseModel):
+class PaginatedTasks(BaseModel):
     items: list[dict[str, Any]]
     page: int
     per_page: int
@@ -126,38 +95,76 @@ class Paginated(BaseModel):
     total_pages: int
 
 
-class AddApplyCreditsBody(BaseModel):
-    telegram_id: str = Field(..., min_length=1)
-    count: int = Field(..., ge=1, le=100000)
+class PaginatedRows(BaseModel):
+    items: list[dict[str, Any]]
+    page: int
+    per_page: int
+    total: int
+    total_pages: int
 
 
-class GenerateCodesBody(BaseModel):
-    credits: int = Field(..., ge=1, le=100000, description="每张卡密可兑换的申请次数")
-    count: int = Field(..., ge=1, le=500)
+class DeviceAliasBody(BaseModel):
+    alias: str | None = None
 
 
-class BotConfigUpdate(BaseModel):
-    TRC20_ADDRESS: Optional[str] = None
-    OKPAY_ID: Optional[str] = None
-    OKPAY_TOKEN: Optional[str] = None
-    OKPAY_PAYED: Optional[str] = None
-    OKPAY_RETURN_URL: Optional[str] = None
-    BOT_CUSTOM_MENU_JSON: Optional[str] = None
-    APPLY_PACK_1_PRICE: Optional[str] = None
-    APPLY_PACK_10_PRICE: Optional[str] = None
-    APPLY_PACK_50_PRICE: Optional[str] = None
-    APPLY_PACK_100_PRICE: Optional[str] = None
-    TRON_MONITOR_ENABLED: Optional[str] = None
-    TRONGRID_API_KEY: Optional[str] = None
-    TRON_API_BASE: Optional[str] = None
-    TRON_USDT_CONTRACT: Optional[str] = None
-    TRON_POLL_SECONDS: Optional[str] = None
-    TRON_MIN_CONFIRMATIONS: Optional[str] = None
+class DeviceScreenshotPolicyBody(BaseModel):
+    screenshot_upload_policy: str = Field(..., pattern="^(all|failed_only|none)$")
 
 
-class CompleteOrderBody(BaseModel):
-    order_id: str = Field(..., min_length=1)
-    secret: str = Field(..., min_length=1)
+class BatchClickTasksBody(BaseModel):
+    task_type: str = Field(..., min_length=1)
+    keyword: str = Field(..., min_length=1)
+    product_title: str = Field(..., min_length=1)
+    mode: str = Field(..., pattern="^(manual|smart)$")
+    device_ids: list[str] = Field(default_factory=list)
+    per_device_counts: dict[str, int] = Field(default_factory=dict)
+    total_count: int = Field(0, ge=0, le=100000)
+    save_data_record: bool = Field(
+        False, description="勾选后任务成功结案时写入归档（仅成功，含参数与状态）"
+    )
+
+
+class BatchRegisterBody(BaseModel):
+    mode: str = Field(..., pattern="^(manual|smart)$")
+    device_ids: list[str] = Field(default_factory=list)
+    per_device_counts: dict[str, int] = Field(default_factory=dict)
+    raw_text: str = Field(..., min_length=1)
+    save_data_record: bool = Field(
+        True, description="默认勾选：创建时写入归档，结案时合并成功/失败与详情"
+    )
+
+
+class AdminSettingsResponse(BaseModel):
+    task_retention_days: int
+
+
+class AdminSettingsPatchBody(BaseModel):
+    task_retention_days: int = Field(..., ge=1, le=3650)
+
+
+class UsAddressBody(BaseModel):
+    recipient_name: str | None = None
+    state: str | None = None
+    city: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    zip_code: str | None = None
+    phone: str | None = None
+    full_line: str | None = None
+
+
+class HeartbeatBody(BaseModel):
+    device_id: str = Field(..., min_length=1, max_length=128)
+
+
+class TaskReportParsePreviewBody(BaseModel):
+    """联调：模拟客户端 log_lines，查看服务端解析结果（与 客户端上报日志约定.md 一致）。"""
+
+    log_lines: list[str]
+
+
+class TaskReportParsePreviewResponse(BaseModel):
+    parsed: dict[str, Any]
 
 
 def _serialize_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -170,9 +177,54 @@ def _serialize_row(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _paginate(total: int, page: int, per_page: int, rows: list) -> Paginated:
+def _serialize_saved_record_row(row: dict[str, Any]) -> dict[str, Any]:
+    base = _serialize_row(row)
+    raw = base.get("content")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            base["content"] = json.loads(raw)
+        except json.JSONDecodeError:
+            base["content"] = {"_invalid_json": raw[:2000]}
+    return base
+
+
+def _serialize_task_row(row: dict[str, Any]) -> dict[str, Any]:
+    """API task shape: core fields + params (object). Legacy DB columns are not exposed."""
+    base = _serialize_row(row)
+    params_obj = parse_task_params(base)
+    out: dict[str, Any] = {
+        "id": base["id"],
+        "device_id": base.get("device_id"),
+        "task_type": base["task_type"],
+        "status": base["status"],
+        "params": params_obj,
+        "failure_detail": base.get("failure_detail"),
+        "retry_count": int(base.get("retry_count") or 0),
+        "created_at": base.get("created_at"),
+        "updated_at": base.get("updated_at"),
+        "started_at": base.get("started_at"),
+        "finished_at": base.get("finished_at"),
+        "environment": base.get("task_environment"),
+    }
+    if "device_alias" in base:
+        out["device_alias"] = base["device_alias"]
+    return out
+
+
+def _paginate_tasks(total: int, page: int, per_page: int, rows: list) -> PaginatedTasks:
     total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
-    return Paginated(
+    return PaginatedTasks(
+        items=[_serialize_task_row(r) for r in rows],
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+def _paginate_rows(total: int, page: int, per_page: int, rows: list) -> PaginatedRows:
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    return PaginatedRows(
         items=[_serialize_row(r) for r in rows],
         page=page,
         per_page=per_page,
@@ -181,7 +233,36 @@ def _paginate(total: int, page: int, per_page: int, rows: list) -> Paginated:
     )
 
 
-app = FastAPI(title="TG-API Admin", version="1.0.0")
+def _distribute_total(total: int, n: int) -> list[int]:
+    if n <= 0:
+        return []
+    base = total // n
+    rem = total % n
+    return [base + (1 if i < rem else 0) for i in range(n)]
+
+
+CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
+
+
+def _xlsx_row_to_address(row) -> dict[str, Any] | None:
+    vals = list(row) if row else []
+    while len(vals) < 8:
+        vals.append(None)
+    if vals[0] is None and not any(vals):
+        return None
+    return {
+        "recipient_name": str(vals[0]).strip() if vals[0] is not None else None,
+        "state": (str(vals[1]).strip()[:64] if vals[1] is not None else None) or None,
+        "city": (str(vals[2]).strip()[:255] if vals[2] is not None else None) or None,
+        "address_line1": (str(vals[3]).strip()[:512] if vals[3] is not None else None) or None,
+        "address_line2": (str(vals[4]).strip()[:512] if vals[4] is not None else None) or None,
+        "zip_code": (str(vals[5]).strip()[:64] if vals[5] is not None else None) or None,
+        "phone": (str(vals[6]).strip()[:64] if vals[6] is not None else None) or None,
+        "full_line": (str(vals[7]).strip()[:1024] if vals[7] is not None else None) or None,
+    }
+
+
+app = FastAPI(title="亚马逊运维系统", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -196,6 +277,10 @@ app.add_middleware(
 def _startup():
     db.init_tables()
     ensure_data_dir()
+    try:
+        db.purge_completed_tasks_older_than_days(db.get_task_retention_days())
+    except Exception:
+        pass
 
 
 @app.post("/api/v1/auth/token", response_model=TokenResponse)
@@ -212,183 +297,557 @@ async def me(user: CurrentUser):
     return MeResponse(id=user["id"], username=user["username"], is_admin=user["is_admin"])
 
 
-@app.get("/api/v1/admin/stats", response_model=StatsResponse)
-async def admin_stats(user: CurrentUser):
+@app.get("/api/v1/admin/devices/options")
+async def admin_device_options(user: CurrentUser):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    s = db.admin_stats()
-    return StatsResponse(**s)
+    rows = db.list_devices_options()
+    return {"items": [_serialize_row(r) for r in rows]}
 
 
-@app.get("/api/v1/admin/tg-users", response_model=Paginated)
-async def admin_tg_users(
+@app.get("/api/v1/admin/devices", response_model=PaginatedRows)
+async def admin_devices_list(
     user: CurrentUser,
     page: int = Query(1, ge=1),
-    per_page: int = Query(15, ge=1, le=100),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    total, rows = db.admin_list_tg_users(page, per_page)
-    return _paginate(total, page, per_page, rows)
+    total, rows = db.list_devices_paginated(page, per_page, q)
+    ids = [str(r["device_id"]) for r in rows]
+    counts_map = db.get_pending_task_counts_by_device(ids)
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = _serialize_row(r)
+        did = str(d["device_id"])
+        d["pending_tasks"] = counts_map.get(did, {})
+        items.append(d)
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    return PaginatedRows(
+        items=items,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
 
 
-@app.post("/api/v1/admin/tg-users/add-apply-credits")
-async def admin_add_apply_credits(user: CurrentUser, body: AddApplyCreditsBody):
+@app.patch("/api/v1/admin/devices/{device_id}/alias")
+async def admin_device_set_alias(user: CurrentUser, device_id: str, body: DeviceAliasBody):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    n = db.admin_add_apply_credits(body.telegram_id, body.count)
-    if n == 0:
-        raise HTTPException(status_code=404, detail="未找到该 Telegram 用户")
+    db.set_device_alias(device_id, body.alias)
     return {"ok": True}
 
 
-@app.post("/api/v1/payment/complete-order")
-async def payment_complete_order(body: CompleteOrderBody):
-    """支付回调：校验 secret 后将订单置为完成并发放申请次数。环境变量 ORDER_COMPLETE_SECRET。"""
-    expected = os.getenv("ORDER_COMPLETE_SECRET", "").strip()
-    if not expected or body.secret != expected:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if not db.fulfill_order(body.order_id.strip()):
-        raise HTTPException(status_code=400, detail="订单无法完成（不存在、非待支付或无次数包）")
-    return {"ok": True}
-
-
-@app.get("/api/v1/admin/orders", response_model=Paginated)
-async def admin_orders(
-    user: CurrentUser,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(15, ge=1, le=100),
-):
+@app.patch("/api/v1/admin/devices/{device_id}/screenshot-upload-policy")
+async def admin_device_screenshot_upload_policy(user: CurrentUser, device_id: str, body: DeviceScreenshotPolicyBody):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    total, rows = db.admin_list_orders(page, per_page)
-    return _paginate(total, page, per_page, rows)
-
-
-@app.get("/api/v1/admin/codes", response_model=Paginated)
-async def admin_codes(
-    user: CurrentUser,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(15, ge=1, le=100),
-):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    total, rows = db.admin_list_codes(page, per_page)
-    return _paginate(total, page, per_page, rows)
-
-
-@app.post("/api/v1/admin/codes/generate")
-async def admin_generate_codes(user: CurrentUser, body: GenerateCodesBody):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    db.admin_generate_codes(body.count, body.credits)
-    return {"ok": True, "count": body.count, "credits": body.credits}
-
-
-@app.get("/api/v1/admin/api-applications", response_model=Paginated)
-async def admin_api_applications(
-    user: CurrentUser,
-    page: int = Query(1, ge=1),
-    per_page: int = Query(15, ge=1, le=100),
-):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    total, rows = db.admin_list_api_applications(page, per_page)
-    return _paginate(total, page, per_page, rows)
-
-
-@app.get("/api/v1/admin/bot-config")
-async def admin_get_bot_config(user: CurrentUser):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    full = db.get_all_config()
-    return {k: full.get(k, "") for k in sorted(ALLOWED_CONFIG_KEYS)}
-
-
-def _validate_bot_custom_menu_json(raw: str) -> None:
     try:
-        data = json.loads(raw.strip() or "[]")
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="BOT_CUSTOM_MENU_JSON 不是合法 JSON")
-    if not isinstance(data, list):
-        raise HTTPException(status_code=400, detail="BOT_CUSTOM_MENU_JSON 必须是数组")
-    if len(data) > 6:
-        raise HTTPException(status_code=400, detail="自定义菜单最多 6 条")
-    for i, item in enumerate(data):
-        if not isinstance(item, dict):
-            raise HTTPException(status_code=400, detail=f"菜单项 #{i + 1} 必须是对象")
-        text = str(item.get("text") or "").strip()
-        url = str(item.get("url") or "").strip()
-        if not text or not url:
-            raise HTTPException(status_code=400, detail=f"菜单项 #{i + 1} 需同时填写 text 与 url")
+        db.upsert_device_screenshot_upload_policy(device_id, body.screenshot_upload_policy)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="设备 ID 无效")
+    return {
+        "ok": True,
+        "screenshot_upload_policy": db.get_device_screenshot_upload_policy(device_id),
+    }
 
 
-@app.put("/api/v1/admin/bot-config")
-async def admin_put_bot_config(user: CurrentUser, body: BotConfigUpdate):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    data = body.model_dump(exclude_unset=True)
-    if "BOT_CUSTOM_MENU_JSON" in data and data["BOT_CUSTOM_MENU_JSON"] is not None:
-        _validate_bot_custom_menu_json(data["BOT_CUSTOM_MENU_JSON"])
-    for key, val in data.items():
-        if key not in ALLOWED_CONFIG_KEYS:
-            continue
-        if val is not None:
-            db.set_config(key, val)
-    return await admin_get_bot_config(user)
-
-
-@app.post("/api/v1/admin/trc20-qr")
-async def admin_upload_trc20_qr(
+@app.get("/api/v1/admin/keywords", response_model=PaginatedRows)
+async def admin_keywords_list(
     user: CurrentUser,
-    file: UploadFile = File(...),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=200),
+    q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
-    ct = (file.content_type or "").lower()
-    if not ct.startswith("image/"):
-        raise HTTPException(status_code=400, detail="请上传图片文件")
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in TRC20_QR_EXTS:
-        if "png" in ct:
-            suffix = ".png"
-        elif "jpeg" in ct or "jpg" in ct:
-            suffix = ".jpg"
-        elif "webp" in ct:
-            suffix = ".webp"
-        else:
-            raise HTTPException(status_code=400, detail="仅支持 png / jpg / jpeg / webp")
-    body = await file.read()
-    if len(body) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="图片不得超过 5MB")
-    ensure_data_dir()
-    delete_all_trc20_qr()
-    dest = os.path.join(DATA_DIR, TRC20_QR_PREFIX + suffix)
+    total, rows = db.list_keywords_paginated(page, per_page, q)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.post("/api/v1/admin/keywords/import")
+async def admin_keywords_import(user: CurrentUser, file: UploadFile = File(...)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("gbk", errors="replace")
+    lines = text.splitlines()
+    n = db.keywords_import_lines(lines)
+    return {"ok": True, "imported": n}
+
+
+@app.delete("/api/v1/admin/keywords/{keyword_id}")
+async def admin_keyword_delete(user: CurrentUser, keyword_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if not db.keyword_delete(keyword_id):
+        raise HTTPException(status_code=404, detail="不存在")
+    return {"ok": True}
+
+
+@app.post("/api/v1/admin/tasks/batch-click")
+async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if body.task_type not in CLICK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type 无效")
+    device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
+    if not device_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一台设备")
+    pairs: list[tuple[str, int]] = []
+    if body.mode == "manual":
+        for d in device_ids:
+            c = int(body.per_device_counts.get(d, 0))
+            if c > 0:
+                pairs.append((d, c))
+    else:
+        total = int(body.total_count)
+        if total <= 0:
+            raise HTTPException(status_code=400, detail="智能分配请填写总任务数")
+        counts = _distribute_total(total, len(device_ids))
+        pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
+    if not pairs:
+        raise HTTPException(status_code=400, detail="没有可创建的任务数量")
+    n = db.insert_click_tasks_batch(
+        body.task_type,
+        body.keyword.strip(),
+        body.product_title.strip(),
+        pairs,
+        persist_data=body.save_data_record,
+    )
+    return {"ok": True, "created": n}
+
+
+def _parse_phones_from_text(raw: str) -> list[str]:
+    out: list[str] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        first = line.split("\t", 1)[0].split(",", 1)[0].strip()
+        if first:
+            out.append(first)
+    return out
+
+
+@app.post("/api/v1/admin/tasks/batch-register")
+async def admin_tasks_batch_register(user: CurrentUser, body: BatchRegisterBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    phones = _parse_phones_from_text(body.raw_text)
+    if not phones:
+        raise HTTPException(status_code=400, detail="请填写手机号，一行一个")
+    device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
+    if not device_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一台设备")
+    pairs: list[tuple[str, int]] = []
+    if body.mode == "manual":
+        for d in device_ids:
+            c = int(body.per_device_counts.get(d, 0))
+            if c > 0:
+                pairs.append((d, c))
+        if sum(c for _, c in pairs) != len(phones):
+            raise HTTPException(
+                status_code=400,
+                detail=f"手动分配：所选设备任务数之和须等于手机号行数（当前手机号 {len(phones)} 条）",
+            )
+    else:
+        counts = _distribute_total(len(phones), len(device_ids))
+        pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
+    if not pairs:
+        raise HTTPException(status_code=400, detail="没有可分配的任务数量")
+    try:
+        n = db.insert_register_tasks_phones(phones, pairs, save_data_record=body.save_data_record)
+    except ValueError as e:
+        code = str(e)
+        if code == "EMPTY_ADDRESS_POOL":
+            raise HTTPException(status_code=400, detail="地址库为空，请先导入地址")
+        if code == "REGISTER_DEVICE_COUNT_MISMATCH":
+            raise HTTPException(status_code=400, detail="设备任务数与手机号数量不一致")
+        if code == "REGISTER_EMPTY_DEVICE":
+            raise HTTPException(status_code=400, detail="设备 ID 无效")
+        raise
+    return {"ok": True, "created": n}
+
+
+@app.get("/api/v1/admin/settings", response_model=AdminSettingsResponse)
+async def admin_get_settings(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return AdminSettingsResponse(task_retention_days=db.get_task_retention_days())
+
+
+@app.patch("/api/v1/admin/settings", response_model=AdminSettingsResponse)
+async def admin_patch_settings(user: CurrentUser, body: AdminSettingsPatchBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    db.set_task_retention_days(body.task_retention_days)
+    try:
+        db.purge_completed_tasks_older_than_days(db.get_task_retention_days())
+    except Exception:
+        pass
+    return AdminSettingsResponse(task_retention_days=db.get_task_retention_days())
+
+
+@app.get("/api/v1/admin/task-saved-records", response_model=PaginatedRows)
+async def admin_task_saved_records_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    task_type: Optional[str] = None,
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    total, rows = db.list_task_saved_records(page, per_page, task_type, q)
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    return PaginatedRows(
+        items=[_serialize_saved_record_row(r) for r in rows],
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+@app.get("/api/v1/admin/addresses", response_model=PaginatedRows)
+async def admin_addresses_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    total, rows = db.list_addresses_paginated(page, per_page, q)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.post("/api/v1/admin/addresses")
+async def admin_address_create(user: CurrentUser, body: UsAddressBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    aid = db.address_create(body.model_dump())
+    return {"ok": True, "id": aid}
+
+
+@app.get("/api/v1/admin/addresses/{address_id}")
+async def admin_address_get(user: CurrentUser, address_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    row = db.address_get(address_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="不存在")
+    return _serialize_row(row)
+
+
+@app.put("/api/v1/admin/addresses/{address_id}")
+async def admin_address_update(user: CurrentUser, address_id: int, body: UsAddressBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if not db.address_update(address_id, body.model_dump()):
+        raise HTTPException(status_code=404, detail="不存在")
+    return {"ok": True}
+
+
+@app.delete("/api/v1/admin/addresses/{address_id}")
+async def admin_address_delete(user: CurrentUser, address_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if not db.address_delete(address_id):
+        raise HTTPException(status_code=404, detail="不存在")
+    return {"ok": True}
+
+
+@app.post("/api/v1/admin/addresses/import-xlsx")
+async def admin_addresses_import_xlsx(user: CurrentUser, file: UploadFile = File(...)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        raise HTTPException(status_code=500, detail="服务端未安装 openpyxl")
+    data = await file.read()
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    ws = wb.active
+    rows_out: list[dict] = []
+    for row in ws.iter_rows(values_only=True):
+        rec = _xlsx_row_to_address(row)
+        if rec and (rec.get("recipient_name") or rec.get("full_line") or rec.get("address_line1")):
+            rows_out.append(rec)
+    wb.close()
+    if not rows_out:
+        raise HTTPException(status_code=400, detail="未解析到有效行")
+    n = db.addresses_import_rows(rows_out)
+    return {"ok": True, "imported": n}
+
+
+@app.post("/api/v1/admin/task-report/parse-preview", response_model=TaskReportParsePreviewResponse)
+async def admin_task_report_parse_preview(user: CurrentUser, body: TaskReportParsePreviewBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    p = parse_task_report_footer(body.log_lines)
+    fin: str | None = None
+    if p.finished_at is not None:
+        fin = p.finished_at.isoformat()
+    return TaskReportParsePreviewResponse(
+        parsed={
+            "success": p.success,
+            "environment": p.environment,
+            "finished_at": fin,
+            "failure_detail": p.failure_detail,
+            "used_amz_report": p.used_amz_report,
+        }
+    )
+
+
+@app.get("/api/v1/admin/task-center/tasks", response_model=PaginatedTasks)
+async def admin_task_center_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    device_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    task_type: Optional[str] = None,
+    params_q: Optional[str] = Query(
+        None,
+        max_length=256,
+        description="在 params JSON 及遗留关键词/标题/手机等字段中模糊匹配",
+    ),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    pq = params_q.strip() if params_q and params_q.strip() else None
+    total, rows = db.list_tasks_filtered(page, per_page, device_id, status_filter, task_type, pq)
+    return _paginate_tasks(total, page, per_page, rows)
+
+
+@app.get("/api/v1/admin/task-center/tasks/{task_id}")
+async def admin_task_center_detail(user: CurrentUser, task_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    task = db.get_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    logs = db.get_task_logs(task_id)
+    imgs = db.get_task_image_rows(task_id)
+    return {
+        "task": _serialize_task_row(task),
+        "logs": [_serialize_row(r) for r in logs],
+        "screenshots": [_serialize_row(r) for r in imgs],
+    }
+
+
+@app.get("/api/v1/admin/task-center/screenshots/{image_id}")
+async def admin_task_screenshot_file(user: CurrentUser, image_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    row = db.get_image_by_id(image_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="不存在")
+    path = os.path.join(TASK_IMAGE_DIR, row["stored_name"])
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="文件缺失")
+    media_type, _ = mimetypes.guess_type(path)
+    return FileResponse(path, media_type=media_type or "application/octet-stream")
+
+
+@app.post("/api/v1/admin/task-center/tasks/{task_id}/retry")
+async def admin_task_retry(user: CurrentUser, task_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    ok, names = db.retry_failed_task(task_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="仅失败状态可重试")
+    for name in names:
+        p = os.path.join(TASK_IMAGE_DIR, name)
+        try:
+            os.remove(p)
+        except FileNotFoundError:
+            pass
+    return {"ok": True}
+
+
+@app.delete("/api/v1/admin/task-center/tasks/{task_id}")
+async def admin_task_delete(user: CurrentUser, task_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    ok, names = db.delete_task_and_collect_images(task_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    for name in names:
+        p = os.path.join(TASK_IMAGE_DIR, name)
+        try:
+            os.remove(p)
+        except FileNotFoundError:
+            pass
+    return {"ok": True}
+
+
+@app.post("/api/v1/admin/task-center/tasks/{task_id}/redo")
+async def admin_task_redo(user: CurrentUser, task_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    try:
+        new_id = db.clone_task_redo(task_id)
+    except ValueError as e:
+        if str(e) == "EMPTY_ADDRESS_POOL":
+            raise HTTPException(status_code=400, detail="地址库为空，无法复制注册任务")
+        raise
+    if not new_id:
+        raise HTTPException(status_code=400, detail="无法复制该任务（类型不支持或数据不完整）")
+    return {"ok": True, "new_task_id": new_id}
+
+
+@app.post("/api/v1/client/heartbeat")
+async def client_heartbeat(body: HeartbeatBody):
+    db.upsert_device_heartbeat(body.device_id)
+    pol = db.get_device_screenshot_upload_policy(body.device_id)
+    return {"ok": True, "screenshot_upload_policy": pol}
+
+
+@app.get("/api/v1/client/random-keywords")
+async def client_random_keywords(num: int = Query(2, ge=1, le=100)):
+    kws = db.keywords_random_sample(num)
+    return {"keywords": kws, "count": len(kws)}
+
+
+@app.get("/api/v1/client/tasks/next")
+async def client_tasks_next(
+    device_id: str = Query(..., min_length=1),
+    task_type: Optional[str] = Query(None, description="仅领取指定类型，如 search_click"),
+):
+    db.upsert_device_heartbeat(device_id)
+    pol = db.get_device_screenshot_upload_policy(device_id)
+    tt = task_type.strip() if task_type else None
+    task = db.claim_next_task(device_id, tt)
+    if not task:
+        return {"task": None, "screenshot_upload_policy": pol}
+    return {"task": _serialize_task_row(task), "screenshot_upload_policy": pol}
+
+
+@app.post("/api/v1/client/tasks/{task_id}/screenshots")
+async def client_task_append_screenshots(
+    task_id: int,
+    device_id: str = Form(...),
+    description: str = Form(default=""),
+    image: UploadFile = File(...),
+):
+    """过程截图：running 时按设备策略即时上传；failed_only 策略下也可在任务失败后补传队列中的图。"""
+    task = db.get_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if str(task.get("device_id") or "") != device_id.strip():
+        raise HTTPException(status_code=403, detail="设备不匹配")
+    policy = db.get_device_screenshot_upload_policy(device_id)
+    st = task["status"]
+    if policy == "none":
+        raise HTTPException(status_code=403, detail="设备策略为禁止上传截图")
+    if st == "running":
+        if policy == "failed_only":
+            raise HTTPException(
+                status_code=403,
+                detail="设备策略为仅失败任务上传截图：请在本地压缩暂存，任务失败结案后再传",
+            )
+    elif st == "failed":
+        if policy not in ("all", "failed_only"):
+            raise HTTPException(status_code=403, detail="设备策略为禁止上传截图")
+    else:
+        raise HTTPException(status_code=400, detail="仅执行中或已失败任务可上传过程截图")
+    if not image.filename:
+        raise HTTPException(status_code=400, detail="缺少图片文件")
+    body = await image.read()
+    max_mb = int(os.getenv("TASK_IMAGE_MAX_MB", "8"))
+    if len(body) > max_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="单张图片过大")
+    ext = Path(image.filename).suffix.lower() or ".bin"
+    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bin"):
+        ext = ".bin"
+    stored = f"{task_id}_{uuid.uuid4().hex}{ext}"
+    dest = os.path.join(TASK_IMAGE_DIR, stored)
     with open(dest, "wb") as f:
         f.write(body)
+    desc = (description or "").strip()[:512] or None
+    img_id = db.insert_task_image(task_id, stored, desc)
+    return {"ok": True, "image_id": img_id}
+
+
+@app.post("/api/v1/client/tasks/{task_id}/report")
+async def client_task_report(
+    task_id: int,
+    device_id: str = Form(...),
+    log_lines: str = Form(default="[]"),
+    images: Optional[list[UploadFile]] = File(None),
+    image_descriptions: Optional[str] = Form(
+        default=None,
+        description='可选，与 images 顺序一致的说明 JSON 数组，如 ["搜索页","详情"]',
+    ),
+):
+    try:
+        lines = json.loads(log_lines) if log_lines else []
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="log_lines 须为 JSON 字符串数组")
+    if not isinstance(lines, list):
+        raise HTTPException(status_code=400, detail="log_lines 须为数组")
+    lines = [str(x) for x in lines]
+    task = db.get_task_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task["status"] != "running":
+        raise HTTPException(status_code=400, detail="任务状态不可上报")
+    if str(task.get("device_id") or "") != device_id.strip():
+        raise HTTPException(status_code=403, detail="设备不匹配")
+    policy = db.get_device_screenshot_upload_policy(device_id)
+    parsed_preview = parse_task_report_footer(lines)
+    imgs: list[UploadFile] = list(images or [])
+    if policy == "none" and imgs:
+        raise HTTPException(status_code=400, detail="设备策略为禁止上传截图，结案请勿附带图片")
+    if policy == "failed_only" and parsed_preview.success:
+        imgs = []
+    if lines:
+        db.append_task_logs(task_id, lines)
+    desc_list: list[str | None] = []
+    if image_descriptions and str(image_descriptions).strip():
+        try:
+            arr = json.loads(str(image_descriptions).strip())
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="image_descriptions 须为 JSON 数组字符串")
+        if not isinstance(arr, list):
+            raise HTTPException(status_code=400, detail="image_descriptions 须为数组")
+        for x in arr:
+            if x is None:
+                desc_list.append(None)
+            else:
+                s = str(x).strip()
+                desc_list.append(s[:512] if s else None)
+    max_mb = int(os.getenv("TASK_IMAGE_MAX_MB", "8"))
+    for i, uf in enumerate(imgs):
+        if not uf.filename:
+            continue
+        body = await uf.read()
+        if len(body) > max_mb * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="单张图片过大")
+        ext = Path(uf.filename).suffix.lower() or ".bin"
+        if ext not in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bin"):
+            ext = ".bin"
+        stored = f"{task_id}_{uuid.uuid4().hex}{ext}"
+        dest = os.path.join(TASK_IMAGE_DIR, stored)
+        with open(dest, "wb") as f:
+            f.write(body)
+        one_desc = desc_list[i] if i < len(desc_list) else None
+        db.insert_task_image(task_id, stored, one_desc)
+    ok, _ = db.finalize_task_from_report(task_id, lines)
+    if not ok:
+        raise HTTPException(status_code=400, detail="无法结案任务")
     return {"ok": True}
 
 
-@app.get("/api/v1/admin/trc20-qr")
-async def admin_get_trc20_qr(user: CurrentUser):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    p = trc20_qr_image_path()
-    if not p:
-        raise HTTPException(status_code=404, detail="尚未上传二维码")
-    media_type, _ = mimetypes.guess_type(p)
-    return FileResponse(p, media_type=media_type or "application/octet-stream")
-
-
-@app.delete("/api/v1/admin/trc20-qr")
-async def admin_delete_trc20_qr(user: CurrentUser):
-    if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    delete_all_trc20_qr()
-    return {"ok": True}
-
-
-# Vite base 为 /static/ 时，打包后 JS/CSS 在 static/assets/，请求路径为 /static/assets/*
 _assets = os.path.join(STATIC, "assets")
 if os.path.isdir(_assets):
     app.mount("/static/assets", StaticFiles(directory=_assets), name="static_assets")
@@ -407,14 +866,13 @@ async def spa_index():
     index = os.path.join(STATIC, "index.html")
     if not os.path.isfile(index):
         return {
-            "detail": "请先构建前端：cd admin && npm run build（产物输出到项目根目录 static/）",
+            "detail": "请先构建前端：cd admin && npm run build（输出到仓库根目录 static/，见 vite.config.ts）",
         }
     return FileResponse(index)
 
 
 @app.get("/{full_path:path}")
 async def spa_fallback(full_path: str):
-    # 避免未匹配的 /api/... 被当成 SPA（具体接口已在上方注册）
     if full_path == "api" or full_path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not found")
     if full_path == "static" or full_path.startswith("static/"):

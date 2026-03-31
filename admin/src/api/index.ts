@@ -1,1 +1,1 @@
-export * from './tgApi'
+export * from './amzApi'

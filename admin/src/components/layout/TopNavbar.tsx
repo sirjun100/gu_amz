@@ -36,8 +36,8 @@ export function TopNavbar() {
     <div className="top-navbar">
       {/* 左侧 - 面包屑或标题（<640px 留空间给汉堡菜单） */}
       <div className="flex items-center gap-2 ml-12 sm:ml-0">
-        <span className="text-sm text-slate-500 dark:text-slate-400 hidden sm:inline">TG-API 管理后台</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400 sm:hidden">TG-API</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400 hidden sm:inline">亚马逊运维系统</span>
+        <span className="text-sm text-slate-500 dark:text-slate-400 sm:hidden">运维</span>
       </div>
 
       {/* 右侧 - 工具栏 */}

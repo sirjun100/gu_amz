@@ -50,6 +50,11 @@ export const put = async <T = unknown>(url: string, data?: unknown, config?: Axi
   return response.data
 }
 
+export const patch = async <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> => {
+  const response = await request.patch<T>(url, data, config)
+  return response.data
+}
+
 export const del = async <T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> => {
   const response = await request.delete<T>(url, config)
   return response.data

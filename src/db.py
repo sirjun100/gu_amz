@@ -1,15 +1,63 @@
+import json
 import os
-import random
-import string
 from contextlib import contextmanager
+from datetime import timezone
 
 import pymysql
 from pymysql.cursors import DictCursor
-from pymysql.err import IntegrityError as PyMySQLIntegrityError
 from dotenv import load_dotenv
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from .paths import unlink_task_image_files
+from .reg_password import generate_registration_password
 
 load_dotenv()
+
+CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
+
+SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
+
+
+def normalize_screenshot_upload_policy(value: str | None) -> str:
+    s = (value or "all").strip().lower()
+    return s if s in SCREENSHOT_UPLOAD_POLICIES else "all"
+
+
+def parse_task_params(row: dict | None) -> dict:
+    """Build params dict from DB row (uses params JSON or legacy columns)."""
+    if not row:
+        return {}
+    raw = row.get("params")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            obj = json.loads(raw)
+            return obj if isinstance(obj, dict) else {"value": obj}
+        except json.JSONDecodeError:
+            return {"_invalid_params": raw[:500]}
+    if isinstance(raw, dict):
+        return raw
+    tt = row.get("task_type") or ""
+    if tt in CLICK_TASK_TYPES:
+        return {
+            "keyword": (row.get("keyword") or "") or "",
+            "product_title": (row.get("product_title") or "") or "",
+        }
+    if tt == "register":
+        snap = row.get("address_snapshot")
+        snap_obj: dict | str | None = None
+        if isinstance(snap, str) and snap.strip():
+            try:
+                snap_obj = json.loads(snap)
+            except json.JSONDecodeError:
+                snap_obj = snap
+        return {
+            "phone": (row.get("phone") or "") or "",
+            "account_username": (row.get("account_username") or "") or "",
+            "account_password": (row.get("account_password") or "") or "",
+            "address_id": row.get("address_id"),
+            "address_snapshot": snap_obj,
+        }
+    return {}
 
 
 def _mysql_params():
@@ -18,7 +66,7 @@ def _mysql_params():
         "port": int(os.getenv("MYSQL_PORT", "3306")),
         "user": os.getenv("MYSQL_USER", "root"),
         "password": os.getenv("MYSQL_PASSWORD", "123456"),
-        "database": os.getenv("MYSQL_DATABASE", "tg_api"),
+        "database": os.getenv("MYSQL_DATABASE", "amz"),
         "charset": "utf8mb4",
         "cursorclass": DictCursor,
         "autocommit": False,
@@ -26,8 +74,6 @@ def _mysql_params():
 
 
 class Database:
-    """MySQL 数据访问（每次操作独立连接）。"""
-
     @contextmanager
     def _cursor(self, dict_rows=True):
         conn = pymysql.connect(**_mysql_params())
@@ -45,72 +91,6 @@ class Database:
         with self._cursor() as (conn, cur):
             cur.execute(
                 """
-                CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    telegram_id VARCHAR(64) NOT NULL UNIQUE,
-                    username VARCHAR(255) NULL,
-                    balance DOUBLE DEFAULT 0,
-                    total_recharge DOUBLE DEFAULT 0,
-                    total_applications INT DEFAULT 0,
-                    apply_credits INT NOT NULL DEFAULT 0,
-                    language VARCHAR(8) DEFAULT 'zh',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS orders (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    order_id VARCHAR(128) NOT NULL UNIQUE,
-                    telegram_id VARCHAR(64) NOT NULL,
-                    amount DOUBLE NOT NULL,
-                    payment_method VARCHAR(64) NOT NULL,
-                    credit_pack INT NULL,
-                    status VARCHAR(32) DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS codes (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    code VARCHAR(64) NOT NULL UNIQUE,
-                    credits INT NOT NULL,
-                    status VARCHAR(32) DEFAULT 'unused',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    used_at TIMESTAMP NULL,
-                    used_by VARCHAR(64) NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS api_applications (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    telegram_id VARCHAR(64) NOT NULL,
-                    phone VARCHAR(64) NOT NULL,
-                    api_id VARCHAR(64) NOT NULL,
-                    api_hash VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS config (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    cfg_key VARCHAR(255) NOT NULL UNIQUE,
-                    cfg_value TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                """
-            )
-            cur.execute(
-                """
                 CREATE TABLE IF NOT EXISTS admin_users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     username VARCHAR(64) NOT NULL UNIQUE,
@@ -120,95 +100,402 @@ class Database:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
-
-        self._migrate_schema()
-        self._init_default_config()
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS devices (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device_id VARCHAR(128) NOT NULL UNIQUE,
+                    alias VARCHAR(255) NULL,
+                    last_seen_at TIMESTAMP NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    device_id VARCHAR(128) NULL,
+                    task_type VARCHAR(32) NOT NULL,
+                    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                    params LONGTEXT NULL,
+                    keyword VARCHAR(512) NULL,
+                    product_title VARCHAR(1024) NULL,
+                    failure_detail TEXT NULL,
+                    retry_count INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    started_at TIMESTAMP NULL,
+                    finished_at TIMESTAMP NULL,
+                    task_environment VARCHAR(256) NULL,
+                    INDEX idx_tasks_device (device_id),
+                    INDEX idx_tasks_status (status),
+                    INDEX idx_tasks_type (task_type)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_logs (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    task_id BIGINT NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_task_logs_task (task_id),
+                    CONSTRAINT fk_task_logs_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_images (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    task_id BIGINT NOT NULL,
+                    stored_name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_task_images_name (stored_name),
+                    INDEX idx_task_images_task (task_id),
+                    CONSTRAINT fk_task_images_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS random_keywords (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    keyword VARCHAR(512) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_rk_kw (keyword(191))
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS us_addresses (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    recipient_name VARCHAR(255) NULL,
+                    state VARCHAR(64) NULL,
+                    city VARCHAR(255) NULL,
+                    address_line1 VARCHAR(512) NULL,
+                    address_line2 VARCHAR(512) NULL,
+                    zip_code VARCHAR(64) NULL,
+                    phone VARCHAR(64) NULL,
+                    full_line VARCHAR(1024) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+        self._migrate_tasks_extra_columns()
+        self._migrate_task_images_description()
+        self._migrate_tasks_persist_data()
+        self._migrate_app_settings_and_saved_records()
+        self._migrate_devices_screenshot_upload_policy()
         self._ensure_default_admin()
+        self._ensure_default_app_settings()
 
-    def _migrate_schema(self):
-        """为已有库补充 apply_credits、orders.credit_pack。"""
+    def _migrate_task_images_description(self):
         with self._cursor() as (conn, cur):
-            cur.execute(
-                """
-                SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'apply_credits'
-                """
-            )
-            if cur.fetchone()["c"] == 0:
-                cur.execute("ALTER TABLE users ADD COLUMN apply_credits INT NOT NULL DEFAULT 0")
-            cur.execute(
-                """
-                SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'credit_pack'
-                """
-            )
-            if cur.fetchone()["c"] == 0:
-                cur.execute("ALTER TABLE orders ADD COLUMN credit_pack INT NULL")
-
-            cur.execute(
-                """
-                SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'trc20_pay_amount'
-                """
-            )
-            if cur.fetchone()["c"] == 0:
-                cur.execute("ALTER TABLE orders ADD COLUMN trc20_pay_amount DOUBLE NULL")
-
-            cur.execute(
-                """
-                SELECT COUNT(*) AS c FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tron_processed_tx'
-                """
-            )
-            if cur.fetchone()["c"] == 0:
-                cur.execute(
-                    """
-                    CREATE TABLE tron_processed_tx (
-                        tx_id VARCHAR(128) NOT NULL PRIMARY KEY,
-                        order_id VARCHAR(128) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-                    """
-                )
-
             cur.execute(
                 """
                 SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'codes'
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_images'
                 """
             )
-            code_cols = {r["n"] for r in cur.fetchall()}
-            if code_cols and "credits" not in code_cols and "value" in code_cols:
-                cur.execute("ALTER TABLE codes ADD COLUMN credits INT NOT NULL DEFAULT 1")
-                cur.execute("UPDATE codes SET credits = GREATEST(1, FLOOR(COALESCE(value, 0) + 0.5))")
-                cur.execute("ALTER TABLE codes DROP COLUMN value")
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            if "description" not in cols:
+                cur.execute("ALTER TABLE task_images ADD COLUMN description VARCHAR(512) NULL")
 
-    def _init_default_config(self):
-        default_config = [
-            ("BOT_TOKEN", ""),
-            ("TRC20_ADDRESS", ""),
-            ("OKPAY_ID", ""),
-            ("OKPAY_TOKEN", ""),
-            ("OKPAY_PAYED", "USDT"),
-            ("OKPAY_RETURN_URL", "https://t.me/"),
-            ("APPLY_PACK_1_PRICE", "1"),
-            ("APPLY_PACK_10_PRICE", "7.5"),
-            ("APPLY_PACK_50_PRICE", "25"),
-            ("APPLY_PACK_100_PRICE", "35"),
-            ("BOT_CUSTOM_MENU_JSON", "[]"),
-            ("TRON_MONITOR_ENABLED", "0"),
-            ("TRONGRID_API_KEY", ""),
-            ("TRON_API_BASE", "https://api.trongrid.io"),
-            ("TRON_USDT_CONTRACT", "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"),
-            ("TRON_POLL_SECONDS", "45"),
-            ("TRON_MIN_CONFIRMATIONS", "0"),
-        ]
+    def _migrate_tasks_extra_columns(self):
         with self._cursor() as (conn, cur):
-            for key, value in default_config:
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            parts = []
+            if "phone" not in cols:
+                parts.append("ADD COLUMN phone VARCHAR(128) NULL")
+            if "account_username" not in cols:
+                parts.append("ADD COLUMN account_username VARCHAR(255) NULL")
+            if "account_password" not in cols:
+                parts.append("ADD COLUMN account_password VARCHAR(255) NULL")
+            if "address_id" not in cols:
+                parts.append("ADD COLUMN address_id BIGINT NULL")
+            if "address_snapshot" not in cols:
+                parts.append("ADD COLUMN address_snapshot TEXT NULL")
+            if "params" not in cols:
+                parts.append("ADD COLUMN params LONGTEXT NULL")
+            if "task_environment" not in cols:
+                parts.append("ADD COLUMN task_environment VARCHAR(256) NULL")
+            if parts:
+                cur.execute("ALTER TABLE tasks " + ", ".join(parts))
+            self._backfill_tasks_params_column(cur)
+
+    def _migrate_tasks_persist_data(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tasks'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            if "persist_data" not in cols:
                 cur.execute(
-                    "INSERT IGNORE INTO config (cfg_key, cfg_value) VALUES (%s, %s)",
-                    (key, value),
+                    "ALTER TABLE tasks ADD COLUMN persist_data TINYINT(1) NOT NULL DEFAULT 0"
                 )
+
+    def _migrate_app_settings_and_saved_records(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    setting_key VARCHAR(64) NOT NULL PRIMARY KEY,
+                    setting_value TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_saved_records (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    task_type VARCHAR(32) NOT NULL,
+                    content LONGTEXT NOT NULL,
+                    source_task_id BIGINT NULL,
+                    device_id VARCHAR(128) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_tsr_type (task_type),
+                    INDEX idx_tsr_source (source_task_id),
+                    INDEX idx_tsr_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+
+    def _migrate_devices_screenshot_upload_policy(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'devices'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            if "screenshot_upload_policy" not in cols:
+                cur.execute(
+                    """
+                    ALTER TABLE devices
+                    ADD COLUMN screenshot_upload_policy VARCHAR(24) NOT NULL DEFAULT 'all'
+                    """
+                )
+
+    def _ensure_default_app_settings(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT IGNORE INTO app_settings (setting_key, setting_value)
+                VALUES ('task_retention_days', '15')
+                """
+            )
+
+    def get_app_setting(self, key: str, default: str | None = None) -> str | None:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                "SELECT setting_value FROM app_settings WHERE setting_key = %s",
+                (key,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return default
+            return row.get("setting_value") or default
+
+    def set_app_setting(self, key: str, value: str) -> None:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO app_settings (setting_key, setting_value)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+                """,
+                (key, value),
+            )
+
+    def get_task_retention_days(self) -> int:
+        raw = self.get_app_setting("task_retention_days", "15")
+        try:
+            n = int(raw or 15)
+        except (TypeError, ValueError):
+            n = 15
+        return max(1, min(n, 3650))
+
+    def set_task_retention_days(self, days: int) -> None:
+        d = max(1, min(int(days), 3650))
+        self.set_app_setting("task_retention_days", str(d))
+
+    def purge_completed_tasks_older_than_days(self, days: int) -> int:
+        """Delete finished tasks (success/failed) whose finished_at is older than N days.
+
+        task_logs / task_images rows are removed via ON DELETE CASCADE.
+        Screenshot files under data/task_images are deleted explicitly before removing tasks.
+        """
+        d = max(1, int(days))
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT ti.stored_name
+                FROM task_images ti
+                INNER JOIN tasks t ON t.id = ti.task_id
+                WHERE t.status IN ('success', 'failed')
+                  AND t.finished_at IS NOT NULL
+                  AND t.finished_at < DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                (d,),
+            )
+            names = [r["stored_name"] for r in cur.fetchall()]
+            unlink_task_image_files(names)
+            cur.execute(
+                """
+                DELETE FROM tasks
+                WHERE status IN ('success', 'failed')
+                  AND finished_at IS NOT NULL
+                  AND finished_at < DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                (d,),
+            )
+            return int(cur.rowcount or 0)
+
+    def insert_task_saved_record(
+        self,
+        task_type: str,
+        content: dict,
+        source_task_id: int | None = None,
+        device_id: str | None = None,
+    ) -> int:
+        body = json.dumps(content, default=str, ensure_ascii=False)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO task_saved_records (task_type, content, source_task_id, device_id)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (task_type, body, source_task_id, (device_id or "").strip() or None),
+            )
+            return int(cur.lastrowid)
+
+    def _insert_task_saved_record_cur(self, cur, task_type: str, content: dict, source_task_id: int | None, device_id: str | None):
+        body = json.dumps(content, default=str, ensure_ascii=False)
+        cur.execute(
+            """
+            INSERT INTO task_saved_records (task_type, content, source_task_id, device_id)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (task_type, body, source_task_id, (device_id or "").strip() or None),
+        )
+
+    def _merge_task_saved_record_for_source_cur(self, cur, source_task_id: int, merge: dict):
+        cur.execute(
+            "SELECT id, content FROM task_saved_records WHERE source_task_id = %s LIMIT 1 FOR UPDATE",
+            (source_task_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return
+        try:
+            data = json.loads(row["content"] or "{}")
+        except json.JSONDecodeError:
+            data = {}
+        if not isinstance(data, dict):
+            data = {"_raw": data}
+        data.update(merge)
+        cur.execute(
+            "UPDATE task_saved_records SET content = %s WHERE id = %s",
+            (json.dumps(data, default=str, ensure_ascii=False), row["id"]),
+        )
+
+    def list_task_saved_records(
+        self,
+        page: int,
+        per_page: int,
+        task_type: str | None = None,
+        q: str | None = None,
+    ):
+        offset = (page - 1) * per_page
+        where = ["1=1"]
+        params: list = []
+        if task_type and str(task_type).strip():
+            where.append("task_type = %s")
+            params.append(str(task_type).strip())
+        if q and str(q).strip():
+            where.append("(content LIKE %s OR CAST(device_id AS CHAR) LIKE %s OR CAST(source_task_id AS CHAR) LIKE %s)")
+            needle = f"%{str(q).strip()}%"
+            params.extend([needle, needle, needle])
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM task_saved_records WHERE {wsql}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"""
+                SELECT id, task_type, content, source_task_id, device_id, created_at
+                FROM task_saved_records
+                WHERE {wsql}
+                ORDER BY id DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def _backfill_tasks_params_column(self, cur) -> None:
+        cur.execute(
+            """
+            SELECT id, task_type, keyword, product_title, phone, account_username, account_password,
+                   address_id, address_snapshot, params
+            FROM tasks
+            WHERE params IS NULL OR TRIM(COALESCE(params, '')) = ''
+            """
+        )
+        for row in cur.fetchall():
+            tid = row["id"]
+            tt = row["task_type"] or ""
+            if tt in CLICK_TASK_TYPES:
+                obj = {
+                    "keyword": (row.get("keyword") or "") or "",
+                    "product_title": (row.get("product_title") or "") or "",
+                }
+            elif tt == "register":
+                snap = row.get("address_snapshot")
+                snap_obj = None
+                if isinstance(snap, str) and snap.strip():
+                    try:
+                        snap_obj = json.loads(snap)
+                    except json.JSONDecodeError:
+                        snap_obj = snap
+                obj = {
+                    "phone": (row.get("phone") or "") or "",
+                    "account_username": (row.get("account_username") or "") or "",
+                    "account_password": (row.get("account_password") or "") or "",
+                    "address_id": row.get("address_id"),
+                    "address_snapshot": snap_obj,
+                }
+            else:
+                obj = {}
+            if not obj and tt not in CLICK_TASK_TYPES and tt != "register":
+                continue
+            cur.execute(
+                "UPDATE tasks SET params = %s WHERE id = %s",
+                (json.dumps(obj, default=str, ensure_ascii=False), tid),
+            )
 
     def _ensure_default_admin(self):
         with self._cursor() as (conn, cur):
@@ -236,385 +523,690 @@ class Database:
                 "is_admin": bool(row["is_admin"]),
             }
 
-    def get_user(self, telegram_id):
-        """元组: id, tg, username, balance, total_recharge, total_applications, apply_credits, language, created_at"""
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT * FROM users WHERE telegram_id = %s", (str(telegram_id),))
-            row = cur.fetchone()
-            if not row:
-                return None
-            return (
-                row["id"],
-                row["telegram_id"],
-                row["username"],
-                float(row["balance"] or 0),
-                float(row["total_recharge"] or 0),
-                int(row["total_applications"] or 0),
-                int(row.get("apply_credits") or 0),
-                row["language"] or "zh",
-                row["created_at"],
-            )
-
-    def set_user_language(self, telegram_id, language: str):
-        with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE users SET language = %s WHERE telegram_id = %s",
-                (language, str(telegram_id)),
-            )
-
-    def create_user(self, telegram_id, username=None):
-        try:
-            with self._cursor() as (conn, cur):
-                cur.execute(
-                    "INSERT INTO users (telegram_id, username) VALUES (%s, %s)",
-                    (str(telegram_id), username),
-                )
-            return True
-        except PyMySQLIntegrityError:
-            return False
-
-    def update_balance(self, telegram_id, amount):
-        with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE users SET balance = balance + %s WHERE telegram_id = %s",
-                (amount, str(telegram_id)),
-            )
-
-    def update_total_recharge(self, telegram_id, amount):
-        with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE users SET total_recharge = total_recharge + %s WHERE telegram_id = %s",
-                (amount, str(telegram_id)),
-            )
-
-    def increment_application_count(self, telegram_id):
-        with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE users SET total_applications = total_applications + 1 WHERE telegram_id = %s",
-                (str(telegram_id),),
-            )
-
-    def create_order(self, order_id, telegram_id, amount, payment_method, credit_pack=None, trc20_pay_amount=None):
+    def upsert_device_heartbeat(self, device_id: str):
+        did = device_id.strip()
+        if not did:
+            return
         with self._cursor() as (conn, cur):
             cur.execute(
                 """
-                INSERT INTO orders (order_id, telegram_id, amount, payment_method, credit_pack, trc20_pay_amount)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO devices (device_id, last_seen_at) VALUES (%s, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE last_seen_at = CURRENT_TIMESTAMP
                 """,
-                (order_id, str(telegram_id), amount, payment_method, credit_pack, trc20_pay_amount),
+                (did,),
             )
 
-    def fulfill_order(self, order_id: str) -> bool:
-        """将 pending 订单置为完成，并给用户增加 credit_pack 次数、累计支付金额。"""
+    def set_device_alias(self, device_id: str, alias: str | None):
         with self._cursor() as (conn, cur):
             cur.execute(
-                "SELECT telegram_id, amount, trc20_pay_amount, credit_pack, status FROM orders WHERE order_id = %s FOR UPDATE",
-                (order_id,),
+                "UPDATE devices SET alias = %s WHERE device_id = %s",
+                (alias, device_id),
             )
-            row = cur.fetchone()
-            if not row or row["status"] != "pending":
-                return False
-            pack = int(row["credit_pack"] or 0)
-            if pack <= 0:
-                return False
-            recharge = (
-                float(row["trc20_pay_amount"])
-                if row.get("trc20_pay_amount") is not None
-                else float(row["amount"])
-            )
-            cur.execute(
-                "UPDATE orders SET status = %s, completed_at = CURRENT_TIMESTAMP WHERE order_id = %s AND status = 'pending'",
-                ("completed", order_id),
-            )
-            if cur.rowcount == 0:
-                return False
-            cur.execute(
-                "UPDATE users SET apply_credits = apply_credits + %s, total_recharge = total_recharge + %s WHERE telegram_id = %s",
-                (pack, recharge, str(row["telegram_id"])),
-            )
-        return True
 
-    def list_pending_tron_orders(self):
-        """待链上匹配的 USDT 订单（含 TRC20 精确金额）。"""
+    def get_device_by_device_id(self, device_id: str):
+        did = (device_id or "").strip()
+        if not did:
+            return None
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM devices WHERE device_id = %s", (did,))
+            return cur.fetchone()
+
+    def get_device_screenshot_upload_policy(self, device_id: str) -> str:
+        row = self.get_device_by_device_id(device_id)
+        if not row:
+            return "all"
+        return normalize_screenshot_upload_policy(row.get("screenshot_upload_policy"))
+
+    def upsert_device_screenshot_upload_policy(self, device_id: str, policy: str) -> None:
+        p = normalize_screenshot_upload_policy(policy)
+        did = (device_id or "").strip()
+        if not did:
+            raise ValueError("EMPTY_DEVICE_ID")
         with self._cursor() as (conn, cur):
             cur.execute(
                 """
-                SELECT order_id, telegram_id, trc20_pay_amount, credit_pack, amount, created_at
-                FROM orders
-                WHERE status = 'pending' AND payment_method = 'usdt' AND trc20_pay_amount IS NOT NULL
-                """
-            )
-            return cur.fetchall()
-
-    def tron_try_claim_tx_and_fulfill(self, tx_id: str, order_id: str) -> bool:
-        """同一事务内占用 tx_id 并完成订单；避免重复入账。"""
-        with self._cursor() as (conn, cur):
-            try:
-                cur.execute(
-                    "INSERT INTO tron_processed_tx (tx_id, order_id) VALUES (%s, %s)",
-                    (tx_id, order_id),
-                )
-            except PyMySQLIntegrityError:
-                return False
-            cur.execute(
-                """
-                SELECT telegram_id, amount, trc20_pay_amount, credit_pack, status
-                FROM orders WHERE order_id = %s FOR UPDATE
+                INSERT INTO devices (device_id, screenshot_upload_policy)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE screenshot_upload_policy = VALUES(screenshot_upload_policy)
                 """,
-                (order_id,),
+                (did, p),
             )
-            row = cur.fetchone()
-            if not row or row["status"] != "pending":
-                cur.execute("DELETE FROM tron_processed_tx WHERE tx_id = %s", (tx_id,))
-                return False
-            pack = int(row["credit_pack"] or 0)
-            if pack <= 0:
-                cur.execute("DELETE FROM tron_processed_tx WHERE tx_id = %s", (tx_id,))
-                return False
-            recharge = (
-                float(row["trc20_pay_amount"])
-                if row.get("trc20_pay_amount") is not None
-                else float(row["amount"])
-            )
-            cur.execute(
-                """
-                UPDATE orders SET status = %s, completed_at = CURRENT_TIMESTAMP
-                WHERE order_id = %s AND status = 'pending'
-                """,
-                ("completed", order_id),
-            )
-            if cur.rowcount == 0:
-                cur.execute("DELETE FROM tron_processed_tx WHERE tx_id = %s", (tx_id,))
-                return False
-            cur.execute(
-                """
-                UPDATE users SET apply_credits = apply_credits + %s, total_recharge = total_recharge + %s
-                WHERE telegram_id = %s
-                """,
-                (pack, recharge, str(row["telegram_id"])),
-            )
-        return True
 
-    def consume_apply_credit(self, telegram_id) -> bool:
+    def list_devices_options(self):
         with self._cursor() as (conn, cur):
             cur.execute(
-                "UPDATE users SET apply_credits = apply_credits - 1 WHERE telegram_id = %s AND apply_credits >= 1",
-                (str(telegram_id),),
+                "SELECT device_id, alias, last_seen_at FROM devices ORDER BY last_seen_at IS NULL, last_seen_at DESC"
+            )
+            return list(cur.fetchall())
+
+    def list_devices_paginated(self, page: int, per_page: int, q: str | None):
+        offset = (page - 1) * per_page
+        where = "1=1"
+        params: list = []
+        if q and q.strip():
+            where += " AND (device_id LIKE %s OR COALESCE(alias,'') LIKE %s)"
+            like = f"%{q.strip()}%"
+            params.extend([like, like])
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM devices WHERE {where}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"""
+                SELECT * FROM devices WHERE {where}
+                ORDER BY last_seen_at IS NULL, last_seen_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def get_pending_task_counts_by_device(self, device_ids: list[str]) -> dict[str, dict[str, int]]:
+        if not device_ids:
+            return {}
+        placeholders = ",".join(["%s"] * len(device_ids))
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT device_id, task_type, COUNT(*) AS c
+                FROM tasks
+                WHERE status = 'pending' AND device_id IN ({placeholders})
+                GROUP BY device_id, task_type
+                """,
+                tuple(device_ids),
+            )
+            rows = cur.fetchall()
+        out: dict[str, dict[str, int]] = {str(d): {} for d in device_ids}
+        for r in rows:
+            did = str(r["device_id"])
+            tt = str(r["task_type"])
+            if did not in out:
+                out[did] = {}
+            out[did][tt] = int(r["c"])
+        return out
+
+    def list_keywords_paginated(self, page: int, per_page: int, q: str | None):
+        offset = (page - 1) * per_page
+        where = "1=1"
+        params: list = []
+        if q and q.strip():
+            where += " AND keyword LIKE %s"
+            params.append(f"%{q.strip()}%")
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM random_keywords WHERE {where}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"SELECT * FROM random_keywords WHERE {where} ORDER BY id DESC LIMIT %s OFFSET %s",
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def keywords_import_lines(self, lines: list[str]) -> int:
+        n = 0
+        with self._cursor() as (conn, cur):
+            for line in lines:
+                kw = line.strip()
+                if not kw:
+                    continue
+                cur.execute("INSERT INTO random_keywords (keyword) VALUES (%s)", (kw,))
+                n += cur.rowcount
+        return n
+
+    def keyword_delete(self, kid: int) -> bool:
+        with self._cursor() as (conn, cur):
+            cur.execute("DELETE FROM random_keywords WHERE id = %s", (kid,))
+            return cur.rowcount > 0
+
+    def keywords_random_sample(self, num: int) -> list[str]:
+        n = max(1, min(200, int(num)))
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT keyword FROM random_keywords ORDER BY RAND() LIMIT %s", (n,))
+            return [r["keyword"] for r in cur.fetchall()]
+
+    def list_addresses_paginated(self, page: int, per_page: int, q: str | None):
+        offset = (page - 1) * per_page
+        where = "1=1"
+        params: list = []
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            where += """ AND (
+                recipient_name LIKE %s OR state LIKE %s OR city LIKE %s OR address_line1 LIKE %s
+                OR zip_code LIKE %s OR phone LIKE %s OR full_line LIKE %s
+            )"""
+            params.extend([like] * 7)
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM us_addresses WHERE {where}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"SELECT * FROM us_addresses WHERE {where} ORDER BY id DESC LIMIT %s OFFSET %s",
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def address_get(self, aid: int):
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM us_addresses WHERE id = %s", (aid,))
+            return cur.fetchone()
+
+    def address_create(self, row: dict) -> int:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO us_addresses (
+                    recipient_name, state, city, address_line1, address_line2,
+                    zip_code, phone, full_line
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (
+                    row.get("recipient_name"),
+                    row.get("state"),
+                    row.get("city"),
+                    row.get("address_line1"),
+                    row.get("address_line2"),
+                    row.get("zip_code"),
+                    row.get("phone"),
+                    row.get("full_line"),
+                ),
+            )
+            return cur.lastrowid
+
+    def address_update(self, aid: int, row: dict) -> bool:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE us_addresses SET
+                    recipient_name=%s, state=%s, city=%s, address_line1=%s, address_line2=%s,
+                    zip_code=%s, phone=%s, full_line=%s
+                WHERE id=%s
+                """,
+                (
+                    row.get("recipient_name"),
+                    row.get("state"),
+                    row.get("city"),
+                    row.get("address_line1"),
+                    row.get("address_line2"),
+                    row.get("zip_code"),
+                    row.get("phone"),
+                    row.get("full_line"),
+                    aid,
+                ),
             )
             return cur.rowcount > 0
 
-    def increment_apply_credits(self, telegram_id, n: int):
+    def address_delete(self, aid: int) -> bool:
         with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE users SET apply_credits = apply_credits + %s WHERE telegram_id = %s",
-                (int(n), str(telegram_id)),
-            )
+            cur.execute("DELETE FROM us_addresses WHERE id = %s", (aid,))
+            return cur.rowcount > 0
 
-    def update_order_status(self, order_id, status):
+    def addresses_import_rows(self, rows: list[dict]) -> int:
+        n = 0
         with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE orders SET status = %s, completed_at = CURRENT_TIMESTAMP WHERE order_id = %s",
-                (status, order_id),
-            )
+            for row in rows:
+                cur.execute(
+                    """
+                    INSERT INTO us_addresses (
+                        recipient_name, state, city, address_line1, address_line2,
+                        zip_code, phone, full_line
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    """,
+                    (
+                        row.get("recipient_name"),
+                        row.get("state"),
+                        row.get("city"),
+                        row.get("address_line1"),
+                        row.get("address_line2"),
+                        row.get("zip_code"),
+                        row.get("phone"),
+                        row.get("full_line"),
+                    ),
+                )
+                n += cur.rowcount
+        return n
 
-    def get_pending_orders(self, telegram_id):
+    def pick_random_address_row(self):
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM us_addresses ORDER BY RAND() LIMIT 1")
+            return cur.fetchone()
+
+    def insert_click_tasks_batch(
+        self,
+        task_type: str,
+        keyword: str,
+        product_title: str,
+        device_counts: list[tuple[str, int]],
+        persist_data: bool = False,
+    ) -> int:
+        n = 0
+        pd = 1 if persist_data else 0
+        with self._cursor() as (conn, cur):
+            for device_id, count in device_counts:
+                c = max(0, int(count))
+                did = device_id.strip() if device_id else ""
+                if not did:
+                    continue
+                payload = json.dumps(
+                    {"keyword": keyword, "product_title": product_title},
+                    ensure_ascii=False,
+                )
+                for _ in range(c):
+                    cur.execute(
+                        """
+                        INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                        VALUES (%s, %s, 'pending', %s, %s)
+                        """,
+                        (did, task_type, payload, pd),
+                    )
+                    n += 1
+        return n
+
+    def insert_register_tasks_phones(
+        self, phones: list[str], device_counts: list[tuple[str, int]], save_data_record: bool = True
+    ) -> int:
+        plist = [p.strip() for p in phones if p and str(p).strip()]
+        if not plist:
+            return 0
+        total_assigned = sum(max(0, int(c)) for _, c in device_counts)
+        if total_assigned != len(plist):
+            raise ValueError("REGISTER_DEVICE_COUNT_MISMATCH")
+        n = 0
+        pos = 0
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT COUNT(*) AS c FROM us_addresses")
+            if cur.fetchone()["c"] == 0:
+                raise ValueError("EMPTY_ADDRESS_POOL")
+            for device_id, count in device_counts:
+                did = (device_id or "").strip()
+                if not did:
+                    raise ValueError("REGISTER_EMPTY_DEVICE")
+                for _ in range(max(0, int(count))):
+                    if pos >= len(plist):
+                        raise ValueError("REGISTER_DEVICE_COUNT_MISMATCH")
+                    phone = plist[pos]
+                    pos += 1
+                    cur.execute("SELECT * FROM us_addresses ORDER BY RAND() LIMIT 1")
+                    addr = cur.fetchone()
+                    if not addr:
+                        raise ValueError("EMPTY_ADDRESS_POOL")
+                    name_raw = (addr.get("recipient_name") or "").strip()
+                    uname = name_raw if name_raw else f"user{n % 100000}"
+                    pwd = generate_registration_password()
+                    addr_obj = {k: addr[k] for k in addr if k not in ("id",)}
+                    reg_params = json.dumps(
+                        {
+                            "phone": phone,
+                            "account_username": uname,
+                            "account_password": pwd,
+                            "address_id": addr["id"],
+                            "address_snapshot": addr_obj,
+                        },
+                        default=str,
+                        ensure_ascii=False,
+                    )
+                    persist = 1 if save_data_record else 0
+                    cur.execute(
+                        """
+                        INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                        VALUES (%s, 'register', 'pending', %s, %s)
+                        """,
+                        (did, reg_params, persist),
+                    )
+                    tid = int(cur.lastrowid)
+                    if save_data_record:
+                        params_obj = json.loads(reg_params)
+                        self._insert_task_saved_record_cur(
+                            cur,
+                            "register",
+                            {"phase": "created", "params": params_obj, "task_id": tid, "device_id": did},
+                            tid,
+                            did,
+                        )
+                    n += 1
+        if pos != len(plist):
+            raise ValueError("REGISTER_DEVICE_COUNT_MISMATCH")
+        return n
+
+    def list_tasks_filtered(
+        self,
+        page: int,
+        per_page: int,
+        device_id: str | None,
+        status: str | None,
+        task_type: str | None,
+        params_contains: str | None = None,
+    ):
+        offset = (page - 1) * per_page
+        where = ["1=1"]
+        params: list = []
+        if device_id:
+            where.append("t.device_id = %s")
+            params.append(device_id)
+        if status:
+            where.append("t.status = %s")
+            params.append(status)
+        if task_type:
+            where.append("t.task_type = %s")
+            params.append(task_type)
+        if params_contains and str(params_contains).strip():
+            needle = f"%{str(params_contains).strip()}%"
+            where.append(
+                "("
+                "COALESCE(t.params, '') LIKE %s "
+                "OR CONCAT("
+                "IFNULL(t.keyword,''), IFNULL(t.product_title,''), IFNULL(t.phone,''), "
+                "IFNULL(t.account_username,''), IFNULL(t.account_password,'')"
+                ") LIKE %s)"
+            )
+            params.extend([needle, needle])
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM tasks t WHERE {wsql}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"""
+                SELECT t.*, d.alias AS device_alias
+                FROM tasks t
+                LEFT JOIN devices d ON d.device_id = t.device_id
+                WHERE {wsql}
+                ORDER BY t.id DESC
+                LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def get_task_by_id(self, task_id: int):
         with self._cursor() as (conn, cur):
             cur.execute(
-                "SELECT order_id FROM orders WHERE telegram_id = %s AND status = 'pending'",
-                (str(telegram_id),),
+                """
+                SELECT t.*, d.alias AS device_alias
+                FROM tasks t
+                LEFT JOIN devices d ON d.device_id = t.device_id
+                WHERE t.id = %s
+                """,
+                (task_id,),
+            )
+            return cur.fetchone()
+
+    def get_task_logs(self, task_id: int):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, body, created_at FROM task_logs WHERE task_id = %s ORDER BY id ASC",
+                (task_id,),
             )
             return cur.fetchall()
 
-    def cancel_pending_orders(self, telegram_id):
+    def get_task_image_rows(self, task_id: int):
         with self._cursor() as (conn, cur):
             cur.execute(
-                "UPDATE orders SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP "
-                "WHERE telegram_id = %s AND status = 'pending'",
-                (str(telegram_id),),
+                "SELECT id, stored_name, description, created_at FROM task_images WHERE task_id = %s ORDER BY id ASC",
+                (task_id,),
             )
-            return cur.rowcount
+            return cur.fetchall()
 
-    def expire_pending_orders_older_than(self, minutes: int) -> list[dict]:
-        """将创建超过 minutes 分钟仍为 pending 的订单置为 cancelled，返回需通知的列表（order_id, telegram_id）。"""
-        out: list[dict] = []
+    def delete_task_and_collect_images(self, task_id: int):
         with self._cursor() as (conn, cur):
-            cur.execute(
-                """
-                SELECT order_id, telegram_id FROM orders
-                WHERE status = 'pending'
-                  AND created_at < DATE_SUB(NOW(), INTERVAL %s MINUTE)
-                FOR UPDATE
-                """,
-                (int(minutes),),
-            )
-            rows = cur.fetchall()
-            for row in rows:
-                oid = row["order_id"]
-                cur.execute(
-                    """
-                    UPDATE orders SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
-                    WHERE order_id = %s AND status = 'pending'
-                    """,
-                    (oid,),
-                )
-                if cur.rowcount:
-                    out.append({"order_id": oid, "telegram_id": str(row["telegram_id"])})
-        return out
+            cur.execute("SELECT stored_name FROM task_images WHERE task_id = %s", (task_id,))
+            names = [r["stored_name"] for r in cur.fetchall()]
+            cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
+            return cur.rowcount > 0, names
 
-    def get_code(self, code):
-        """返回元组 (id, code, credits, status, created_at, used_at, used_by)；[2] 为可兑换申请次数。"""
+    def clone_task_redo(self, task_id: int) -> int | None:
         with self._cursor() as (conn, cur):
-            cur.execute("SELECT * FROM codes WHERE code = %s", (code,))
+            cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
             row = cur.fetchone()
             if not row:
                 return None
-            cr = row.get("credits")
-            if cr is None and row.get("value") is not None:
-                cr = max(1, int(round(float(row["value"]))))
-            return (
-                row["id"],
-                row["code"],
-                int(cr or 0),
-                row["status"],
-                row["created_at"],
-                row["used_at"],
-                row["used_by"],
-            )
+            tt = row["task_type"]
+            if tt in CLICK_TASK_TYPES:
+                p = parse_task_params(row)
+                payload = json.dumps(
+                    {
+                        "keyword": p.get("keyword") or "",
+                        "product_title": p.get("product_title") or "",
+                    },
+                    ensure_ascii=False,
+                )
+                pd = int(row.get("persist_data") or 0)
+                cur.execute(
+                    """
+                    INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                    VALUES (%s, %s, 'pending', %s, %s)
+                    """,
+                    (row.get("device_id"), tt, payload, pd),
+                )
+                return cur.lastrowid
+            if tt == "register":
+                cur.execute("SELECT COUNT(*) AS c FROM us_addresses")
+                if cur.fetchone()["c"] == 0:
+                    raise ValueError("EMPTY_ADDRESS_POOL")
+                p = parse_task_params(row)
+                phone = (p.get("phone") or row.get("phone") or "").strip()
+                if not phone:
+                    return None
+                cur.execute("SELECT * FROM us_addresses ORDER BY RAND() LIMIT 1")
+                addr = cur.fetchone()
+                if not addr:
+                    raise ValueError("EMPTY_ADDRESS_POOL")
+                name_raw = (addr.get("recipient_name") or "").strip()
+                uname = name_raw if name_raw else "user"
+                pwd = generate_registration_password()
+                addr_obj = {k: addr[k] for k in addr if k not in ("id",)}
+                reg_params = json.dumps(
+                    {
+                        "phone": phone,
+                        "account_username": uname,
+                        "account_password": pwd,
+                        "address_id": addr["id"],
+                        "address_snapshot": addr_obj,
+                    },
+                    default=str,
+                    ensure_ascii=False,
+                )
+                pd = int(row.get("persist_data") or 0)
+                cur.execute(
+                    """
+                    INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                    VALUES (%s, 'register', 'pending', %s, %s)
+                    """,
+                    (row.get("device_id"), reg_params, pd),
+                )
+                new_tid = int(cur.lastrowid)
+                if pd:
+                    params_obj = json.loads(reg_params)
+                    did = (row.get("device_id") or "").strip() or None
+                    self._insert_task_saved_record_cur(
+                        cur,
+                        "register",
+                        {
+                            "phase": "created",
+                            "params": params_obj,
+                            "task_id": new_tid,
+                            "device_id": did,
+                            "redone_from_task_id": task_id,
+                        },
+                        new_tid,
+                        did,
+                    )
+                return new_tid
+        return None
 
-    def use_code(self, code, telegram_id):
+    def retry_failed_task(self, task_id: int):
         with self._cursor() as (conn, cur):
-            cur.execute(
-                "UPDATE codes SET status = 'used', used_at = CURRENT_TIMESTAMP, used_by = %s "
-                "WHERE code = %s AND status = 'unused'",
-                (str(telegram_id), code),
-            )
-            ok = cur.rowcount > 0
-            return ok
-
-    def add_api_application(self, telegram_id, phone, api_id, api_hash):
-        with self._cursor() as (conn, cur):
-            cur.execute(
-                "INSERT INTO api_applications (telegram_id, phone, api_id, api_hash) VALUES (%s, %s, %s, %s)",
-                (str(telegram_id), phone, str(api_id), str(api_hash)),
-            )
-
-    def insert_code(self, code: str, credits: int):
-        with self._cursor() as (conn, cur):
-            cur.execute("INSERT INTO codes (code, credits) VALUES (%s, %s)", (code, int(credits)))
-
-    def get_config(self, key, default=None):
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT cfg_value FROM config WHERE cfg_key = %s", (key,))
+            cur.execute("SELECT id, status FROM tasks WHERE id = %s FOR UPDATE", (task_id,))
             row = cur.fetchone()
-            return row["cfg_value"] if row else default
+            if not row or row["status"] != "failed":
+                return False, []
+            cur.execute("SELECT stored_name FROM task_images WHERE task_id = %s", (task_id,))
+            names = [r["stored_name"] for r in cur.fetchall()]
+            cur.execute("DELETE FROM task_logs WHERE task_id = %s", (task_id,))
+            cur.execute("DELETE FROM task_images WHERE task_id = %s", (task_id,))
+            cur.execute(
+                """
+                UPDATE tasks SET
+                    status = 'pending',
+                    failure_detail = NULL,
+                    started_at = NULL,
+                    finished_at = NULL,
+                    task_environment = NULL,
+                    retry_count = retry_count + 1
+                WHERE id = %s
+                """,
+                (task_id,),
+            )
+        return True, names
 
-    def set_config(self, key, value):
+    def claim_next_task(self, device_id: str, task_type: str | None = None):
+        did = device_id.strip()
+        with self._cursor() as (conn, cur):
+            if task_type and task_type.strip():
+                tt = task_type.strip()
+                cur.execute(
+                    """
+                    SELECT id FROM tasks
+                    WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s) AND task_type = %s
+                    ORDER BY id ASC
+                    LIMIT 1
+                    FOR UPDATE
+                    """,
+                    (did, tt),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id FROM tasks
+                    WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
+                    ORDER BY id ASC
+                    LIMIT 1
+                    FOR UPDATE
+                    """,
+                    (did,),
+                )
+            row = cur.fetchone()
+            if not row:
+                return None
+            tid = row["id"]
+            cur.execute(
+                """
+                UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP, device_id = COALESCE(device_id, %s)
+                WHERE id = %s AND status = 'pending'
+                """,
+                (did, tid),
+            )
+            if cur.rowcount == 0:
+                return None
+            cur.execute("SELECT * FROM tasks WHERE id = %s", (tid,))
+            return cur.fetchone()
+
+    def append_task_logs(self, task_id: int, lines: list[str]):
+        with self._cursor() as (conn, cur):
+            for line in lines:
+                cur.execute(
+                    "INSERT INTO task_logs (task_id, body) VALUES (%s, %s)",
+                    (task_id, line),
+                )
+
+    def insert_task_image(self, task_id: int, stored_name: str, description: str | None = None) -> int:
+        desc = (description or "").strip()
+        if len(desc) > 512:
+            desc = desc[:512]
+        if not desc:
+            desc = None
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                "INSERT INTO task_images (task_id, stored_name, description) VALUES (%s, %s, %s)",
+                (task_id, stored_name, desc),
+            )
+            return int(cur.lastrowid)
+
+    def finalize_task_from_report(self, task_id: int, log_lines: list[str]):
+        from .task_report_parse import parse_task_report_footer
+
+        parsed = parse_task_report_footer(log_lines)
+        success = parsed.success
+        fin = parsed.finished_at
+        if fin is not None and fin.tzinfo is not None:
+            fin = fin.astimezone(timezone.utc).replace(tzinfo=None)
+
         with self._cursor() as (conn, cur):
             cur.execute(
                 """
-                INSERT INTO config (cfg_key, cfg_value) VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE cfg_value = VALUES(cfg_value), updated_at = CURRENT_TIMESTAMP
+                SELECT id, status, task_type, persist_data, params, device_id
+                FROM tasks WHERE id = %s FOR UPDATE
                 """,
-                (key, str(value)),
+                (task_id,),
             )
+            row = cur.fetchone()
+            if not row or row["status"] != "running":
+                return False, False
+            env = parsed.environment
+            if success:
+                cur.execute(
+                    """
+                    UPDATE tasks SET
+                        status = 'success',
+                        failure_detail = NULL,
+                        finished_at = COALESCE(%s, CURRENT_TIMESTAMP),
+                        task_environment = %s
+                    WHERE id = %s
+                    """,
+                    (fin, env, task_id),
+                )
+            else:
+                detail = parsed.failure_detail or "failed"
+                cur.execute(
+                    """
+                    UPDATE tasks SET
+                        status = 'failed',
+                        failure_detail = %s,
+                        finished_at = COALESCE(%s, CURRENT_TIMESTAMP),
+                        task_environment = %s
+                    WHERE id = %s
+                    """,
+                    (detail, fin, env, task_id),
+                )
 
-    def get_all_config(self):
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT cfg_key, cfg_value FROM config")
-            return {r["cfg_key"]: r["cfg_value"] for r in cur.fetchall()}
+            persist = int(row.get("persist_data") or 0)
+            tt = row["task_type"] or ""
+            if persist:
+                finished_iso = None
+                if fin is not None:
+                    finished_iso = fin.isoformat() if hasattr(fin, "isoformat") else str(fin)
+                merge_finish = {
+                    "phase": "finished",
+                    "status": "success" if success else "failed",
+                    "failure_detail": None if success else (parsed.failure_detail or "failed"),
+                    "finished_at": finished_iso,
+                    "task_environment": env,
+                }
+                if tt == "register":
+                    self._merge_task_saved_record_for_source_cur(cur, task_id, merge_finish)
+                elif tt in CLICK_TASK_TYPES and success:
+                    cur.execute(
+                        "DELETE FROM task_saved_records WHERE source_task_id = %s AND task_type = %s",
+                        (task_id, tt),
+                    )
+                    params_obj = parse_task_params(row)
+                    content = {
+                        "params": params_obj,
+                        "status": "success",
+                        "task_id": task_id,
+                        "device_id": row.get("device_id"),
+                        "finished_at": finished_iso,
+                        "task_environment": env,
+                    }
+                    self._insert_task_saved_record_cur(cur, tt, content, task_id, row.get("device_id"))
+        return True, success
 
-    def admin_add_apply_credits(self, telegram_id: str, count: int):
+    def get_image_by_id(self, image_id: int):
         with self._cursor() as (conn, cur):
             cur.execute(
-                "UPDATE users SET apply_credits = apply_credits + %s WHERE telegram_id = %s",
-                (int(count), str(telegram_id)),
+                "SELECT id, task_id, stored_name FROM task_images WHERE id = %s",
+                (image_id,),
             )
-            return cur.rowcount
-
-    def admin_stats(self):
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS c FROM users")
-            total_users = cur.fetchone()["c"]
-            cur.execute("SELECT COUNT(*) AS c FROM orders")
-            total_orders = cur.fetchone()["c"]
-            cur.execute("SELECT COUNT(*) AS c FROM codes")
-            total_codes = cur.fetchone()["c"]
-            cur.execute("SELECT COALESCE(SUM(total_applications), 0) AS s FROM users")
-            total_application_events = int(cur.fetchone()["s"] or 0)
-        return {
-            "total_users": total_users,
-            "total_orders": total_orders,
-            "total_codes": total_codes,
-            "total_applications": total_application_events,
-        }
-
-    def admin_list_tg_users(self, page: int, per_page: int):
-        offset = (page - 1) * per_page
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS c FROM users")
-            total = cur.fetchone()["c"]
-            cur.execute(
-                "SELECT * FROM users ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (per_page, offset),
-            )
-            rows = cur.fetchall()
-        return total, rows
-
-    def admin_list_orders(self, page: int, per_page: int):
-        offset = (page - 1) * per_page
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS c FROM orders")
-            total = cur.fetchone()["c"]
-            cur.execute(
-                "SELECT * FROM orders ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (per_page, offset),
-            )
-            rows = cur.fetchall()
-        return total, rows
-
-    def admin_list_codes(self, page: int, per_page: int):
-        offset = (page - 1) * per_page
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS c FROM codes")
-            total = cur.fetchone()["c"]
-            cur.execute(
-                "SELECT * FROM codes ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (per_page, offset),
-            )
-            rows = cur.fetchall()
-        return total, rows
-
-    def admin_list_api_applications(self, page: int, per_page: int):
-        offset = (page - 1) * per_page
-        with self._cursor() as (conn, cur):
-            cur.execute("SELECT COUNT(*) AS c FROM api_applications")
-            total = cur.fetchone()["c"]
-            cur.execute(
-                "SELECT * FROM api_applications ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (per_page, offset),
-            )
-            rows = cur.fetchall()
-        return total, rows
-
-    def admin_generate_codes(self, count: int, credits: int):
-        chars = string.ascii_uppercase + string.digits
-
-        def one_code():
-            return "".join(random.choice(chars) for _ in range(12))
-
-        c = max(1, int(credits))
-        with self._cursor() as (conn, cur):
-            for _ in range(count):
-                for _attempt in range(20):
-                    code = one_code()
-                    try:
-                        cur.execute("INSERT INTO codes (code, credits) VALUES (%s, %s)", (code, c))
-                        break
-                    except PyMySQLIntegrityError:
-                        continue
-
-    def close(self):
-        pass
+            return cur.fetchone()
 
 
 db = Database()

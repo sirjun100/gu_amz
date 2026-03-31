@@ -1,22 +1,22 @@
 # Nginx 配置说明（tgapi.tgitellyou.com）
 
-本目录的 `nginx.conf` 把域名 **tgapi.tgitellyou.com** 反向代理到本机 **5080** 端口上的管理后台（与项目根目录 `app.py` 默认 `PORT=5080` 一致）。
+本目录的 `nginx.conf` 把域名 **tgapi.tgitellyou.com** 反向代理到本机 **5090** 端口上的管理后台（与项目根目录 `app.py` 默认 `PORT=5090` 一致）。
 
 ## 1. 准备
 
 1. **DNS**  
    在域名解析里为 **tgapi.tgitellyou.com** 添加 **A 记录**，指向服务器公网 IP（若只用 IPv6 则用 AAAA）。
 
-2. **先启动应用**（监听本机 5080，且建议只绑内网）  
+2. **先启动应用**（监听本机 5090，且建议只绑内网）  
    ```bash
    cd /path/to/tg-api
-   PORT=5080 python app.py
+   PORT=5090 python app.py
    ```  
    或：  
    ```bash
-   uvicorn src.admin_app:app --host 127.0.0.1 --port 5080
+   uvicorn src.admin_app:app --host 127.0.0.1 --port 5090
    ```  
-   确认本机可访问：`curl -sI http://127.0.0.1:5080/`
+   确认本机可访问：`curl -sI http://127.0.0.1:5090/`
 
 ## 2. 接入 Nginx
 
@@ -90,10 +90,10 @@
 
 ## 5. 修改端口时
 
-若应用不用 5080，请同时改两处：
+若应用不用 5090，请同时改两处：
 
 - 启动命令里的端口（或环境变量 `PORT`）  
-- `nginx.conf` 里 `upstream tgapi_admin` 的 `server 127.0.0.1:5080;`
+- `nginx.conf` 里 `upstream tgapi_admin` 的 `server 127.0.0.1:5090;`
 
 改完后执行：`sudo nginx -t && sudo systemctl reload nginx`。
 
@@ -122,11 +122,11 @@
 ```bash
 systemctl status nginx
 curl -sI http://127.0.0.1/          # 经 Nginx（若 server_name 不匹配可能 404，但不应连接失败）
-curl -sI http://127.0.0.1:5080/     # 直连后端
+curl -sI http://127.0.0.1:5090/     # 直连后端
 ss -tlnp | grep -E ':80|:443'
 ```
 
-- Nginx / 应用未运行 → 先 `systemctl start nginx` 并保证 `5080` 上的应用在跑。  
+- Nginx / 应用未运行 → 先 `systemctl start nginx` 并保证 `5090` 上的应用在跑。  
 - **firewalld / 安全组** 未放行 **80**（若用 Full 还要 **443**）→ 外网和 Cloudflare 都连不上源站。
 
 ### 6.3 DNS 是否指对

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MessageSquare, User, Lock, Sun, Moon } from 'lucide-react'
-import { loginToken, fetchMe } from '@/api/tgApi'
+import { Boxes, User, Lock, Sun, Moon } from 'lucide-react'
+import { loginToken, fetchMe } from '@/api/amzApi'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
@@ -26,7 +26,7 @@ export function Login() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard', { replace: true })
+      navigate('/tasks', { replace: true })
     }
   }, [isAuthenticated, navigate])
 
@@ -54,7 +54,7 @@ export function Login() {
         is_admin: me.is_admin,
       })
       addToast({ message: '登录成功', type: 'success' })
-      navigate('/dashboard', { replace: true })
+      navigate('/tasks', { replace: true })
     } catch {
       addToast({ message: '登录失败，请检查用户名或密码', type: 'error' })
     } finally {
@@ -80,10 +80,10 @@ export function Login() {
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center mb-3">
-            <MessageSquare className="w-6 h-6 text-white" />
+            <Boxes className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">TG-API 管理后台</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">登录后管理用户、订单、卡密与机器人配置</p>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-white">亚马逊运维系统</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">登录后管理任务与设备执行状态</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
