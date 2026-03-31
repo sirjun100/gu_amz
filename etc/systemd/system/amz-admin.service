@@ -6,9 +6,9 @@ Wants=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/amz
+WorkingDirectory=/root/pro/amz
 Environment=PORT=5090
-ExecStart=/usr/bin/python3 /root/amz/app.py
+ExecStart=/usr/bin/python3.12 /root/pro/amz/app.py
 Restart=always
 RestartSec=10
 
