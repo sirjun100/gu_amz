@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-sudo cp -f /root/pro/amz/etc/systemd/system/tgapi.service /etc/systemd/system/tgapi.service
+sudo cp -f /root/pro/amz/etc/systemd/system/amz.service /etc/systemd/system/amz.service
 
 
 echo "   启动-amz.service"
