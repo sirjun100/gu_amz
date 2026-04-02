@@ -91,8 +91,8 @@ export function ClickTaskPage({ taskType, title, description }: Props) {
         task_type: taskType,
         keyword: keyword.trim(),
         ...(taskType === 'search_click'
-          ? { product_titles: multiTitles, product_title: multiTitles[0] ?? '' }
-          : { product_title: productTitle.trim() }),
+          ? { product_titles: multiTitles }
+          : { product_titles: [productTitle.trim()] }),
         mode,
         device_ids: selectedIds,
         per_device_counts: mode === 'manual' ? per_device_counts : {},

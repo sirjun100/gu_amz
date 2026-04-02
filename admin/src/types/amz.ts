@@ -57,7 +57,7 @@ export type TaskRow = {
   device_alias?: string | null
   task_type: string
   status: string
-  /** 任务类型相关参数（点击：keyword/product_title；注册：phone、address_snapshot 等） */
+  /** 任务类型相关参数（点击：keyword、product_titles；注册：phone、address_snapshot 等） */
   params: Record<string, unknown>
   failure_detail: string | null
   retry_count: number

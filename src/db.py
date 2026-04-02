@@ -24,7 +24,7 @@ def normalize_screenshot_upload_policy(value: str | None) -> str:
 
 
 def _normalize_click_params_dict(obj: dict) -> dict:
-    """Ensure product_titles list exists for click tasks (backward compat old JSON)."""
+    """点击类 params 对外统一为 keyword + product_titles（兼容旧 JSON 里仅有 product_title）。"""
     pt = (obj.get("product_title") or "").strip()
     arr = obj.get("product_titles")
     titles: list[str] = []
@@ -32,10 +32,8 @@ def _normalize_click_params_dict(obj: dict) -> dict:
         titles = [str(x).strip() for x in arr if x is not None and str(x).strip()]
     if not titles and pt:
         titles = [pt]
-    obj = dict(obj)
-    obj["product_title"] = titles[0] if titles else pt
-    obj["product_titles"] = titles
-    return obj
+    kw = (obj.get("keyword") or "") or ""
+    return {"keyword": kw, "product_titles": titles}
 
 
 def parse_task_params(row: dict | None) -> dict:
@@ -63,11 +61,7 @@ def parse_task_params(row: dict | None) -> dict:
         kw = (row.get("keyword") or "") or ""
         pt = (row.get("product_title") or "") or ""
         titles = [pt] if pt.strip() else []
-        return {
-            "keyword": kw,
-            "product_title": pt,
-            "product_titles": titles,
-        }
+        return {"keyword": kw, "product_titles": titles}
     if tt == "register":
         snap = row.get("address_snapshot")
         snap_obj: dict | str | None = None
@@ -495,9 +489,11 @@ class Database:
             tid = row["id"]
             tt = row["task_type"] or ""
             if tt in CLICK_TASK_TYPES:
+                pt = (row.get("product_title") or "") or ""
+                titles = [pt.strip()] if pt.strip() else []
                 obj = {
                     "keyword": (row.get("keyword") or "") or "",
-                    "product_title": (row.get("product_title") or "") or "",
+                    "product_titles": titles,
                 }
             elif tt == "register":
                 snap = row.get("address_snapshot")
@@ -807,7 +803,6 @@ class Database:
         titles = [t.strip() for t in product_titles if t and str(t).strip()]
         if not titles:
             return 0
-        primary = titles[0]
         n = 0
         pd = 1 if persist_data else 0
         with self._cursor() as (conn, cur):
@@ -817,11 +812,7 @@ class Database:
                 if not did:
                     continue
                 payload = json.dumps(
-                    {
-                        "keyword": keyword,
-                        "product_title": primary,
-                        "product_titles": titles,
-                    },
+                    {"keyword": keyword, "product_titles": titles},
                     ensure_ascii=False,
                 )
                 for _ in range(c):
@@ -998,13 +989,10 @@ class Database:
                 p = parse_task_params(row)
                 titles = p.get("product_titles")
                 if not isinstance(titles, list) or not titles:
-                    pt = (p.get("product_title") or "").strip()
-                    titles = [pt] if pt else []
-                primary = titles[0] if titles else ""
+                    titles = []
                 payload = json.dumps(
                     {
                         "keyword": p.get("keyword") or "",
-                        "product_title": primary,
                         "product_titles": titles,
                     },
                     ensure_ascii=False,

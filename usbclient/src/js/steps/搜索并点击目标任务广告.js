@@ -4,7 +4,7 @@
  *   用无障碍 label / labelMatch 匹配任一 product_titles（Link 的 name/label 含标题子串）→ 进详情
  *   → 详情随机浏览 1～3 分钟（可配）→ 点 Back 回列表，重复直到列表时间用尽。
  *
- * params：keyword；product_titles（string[]）优先；否则回退 product_title 单条。
+ * params：keyword + product_titles（string[]）；兼容极旧任务 JSON 仅有 product_title。
  * 依赖：关键词库随机搜索浏览或加购.js（须先于本文件加载）
  */
 function 任务点击_读配置() {
@@ -337,7 +337,7 @@ function 搜索并点击目标任务广告(task) {
         ")"
     );
     if (titles.length === 0) {
-      throw new Error("搜索并点击目标任务广告: params 中无有效 product_titles / product_title");
+      throw new Error("搜索并点击目标任务广告: params 中无有效 product_titles");
     }
     var kw = String(p.keyword || "").trim();
     if (kw.length === 0) {

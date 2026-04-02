@@ -24,7 +24,7 @@ function formatParamsFullJson(params: unknown): string {
 
 const PARAM_DISPLAY_KEY_ORDER = [
   'keyword',
-  'product_title',
+  'product_titles',
   'phone',
   'username',
   'password',
