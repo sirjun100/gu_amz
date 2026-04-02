@@ -1,5 +1,5 @@
 /**
- * 上传前压缩：缩小宽度并保存为临时 JPG，减轻 multipart 体积与超时风险（依赖 ios-jslibs image.js）
+ * 上传前压缩：缩小宽度并保存为临时 webp（失败回退 jpg），减轻 multipart 体积与超时（依赖 ios-jslibs image.js）
  * @return 临时文件路径；失败或未启用则返回原路径
  */
 function AMZ_截图压缩到临时文件(srcPath) {
@@ -68,4 +68,46 @@ function AMZ_截图压缩到临时文件(srcPath) {
       image.recycle(img);
     }
   }
+}
+
+/**
+ * 当前整屏截图为临时 JPG，供 {@link AMZ_截图压缩到临时文件} 缩放并转为 webp 后上传。
+ * @return {string} 绝对或脚本目录相对路径；失败返回 ""
+ */
+function AMZ_截屏保存到临时文件() {
+  if (typeof image === "undefined" || image == null || typeof image.captureFullScreen !== "function") {
+    logw("AMZ_截屏保存: image.captureFullScreen 不可用");
+    return "";
+  }
+  var img = image.captureFullScreen();
+  if (img == null) {
+    logw("AMZ_截屏保存: captureFullScreen 返回空");
+    return "";
+  }
+  var dir = "";
+  if (typeof AMZ_SCRIPT_BASE !== "undefined" && AMZ_SCRIPT_BASE != null && String(AMZ_SCRIPT_BASE).trim().length > 0) {
+    var b = String(AMZ_SCRIPT_BASE).trim().replace(/\\/g, "/");
+    if (b.charAt(b.length - 1) !== "/") {
+      b = b + "/";
+    }
+    dir = b;
+  }
+  var tmp = dir + "amz_screenfail_" + new Date().getTime() + ".jpg";
+  try {
+    if (typeof img.saveTo === "function" && img.saveTo(tmp) === true) {
+      return tmp;
+    }
+    if (typeof image.saveTo === "function" && image.saveTo(img, tmp) === true) {
+      return tmp;
+    }
+  } catch (e) {
+    logw("AMZ_截屏保存: " + e);
+  } finally {
+    try {
+      if (typeof img.recycle === "function") {
+        img.recycle();
+      }
+    } catch (e2) {}
+  }
+  return "";
 }

@@ -86,7 +86,11 @@ function App() {
           <Route
             path="tasks/search-click"
             element={
-              <ClickTaskPage taskType="search_click" title="搜索产品点击任务" description="关键词 + 产品标题，按设备手动或智能分配任务条数" />
+              <ClickTaskPage
+                taskType="search_click"
+                title="搜索产品点击任务"
+                description="关键词 + 多个产品标题（每行一条）；客户端在结果列表累计停留约 2～4 分钟，匹配任一标题即进详情浏览约 1～3 分钟后 Back 回列表"
+              />
             }
           />
           <Route

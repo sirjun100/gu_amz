@@ -23,24 +23,50 @@ def normalize_screenshot_upload_policy(value: str | None) -> str:
     return s if s in SCREENSHOT_UPLOAD_POLICIES else "all"
 
 
+def _normalize_click_params_dict(obj: dict) -> dict:
+    """Ensure product_titles list exists for click tasks (backward compat old JSON)."""
+    pt = (obj.get("product_title") or "").strip()
+    arr = obj.get("product_titles")
+    titles: list[str] = []
+    if isinstance(arr, list):
+        titles = [str(x).strip() for x in arr if x is not None and str(x).strip()]
+    if not titles and pt:
+        titles = [pt]
+    obj = dict(obj)
+    obj["product_title"] = titles[0] if titles else pt
+    obj["product_titles"] = titles
+    return obj
+
+
 def parse_task_params(row: dict | None) -> dict:
     """Build params dict from DB row (uses params JSON or legacy columns)."""
     if not row:
         return {}
+    tt0 = row.get("task_type") or ""
     raw = row.get("params")
     if isinstance(raw, str) and raw.strip():
         try:
             obj = json.loads(raw)
-            return obj if isinstance(obj, dict) else {"value": obj}
+            if isinstance(obj, dict):
+                if tt0 in CLICK_TASK_TYPES:
+                    return _normalize_click_params_dict(obj)
+                return obj
+            return {"value": obj}
         except json.JSONDecodeError:
             return {"_invalid_params": raw[:500]}
     if isinstance(raw, dict):
+        if tt0 in CLICK_TASK_TYPES:
+            return _normalize_click_params_dict(dict(raw))
         return raw
     tt = row.get("task_type") or ""
     if tt in CLICK_TASK_TYPES:
+        kw = (row.get("keyword") or "") or ""
+        pt = (row.get("product_title") or "") or ""
+        titles = [pt] if pt.strip() else []
         return {
-            "keyword": (row.get("keyword") or "") or "",
-            "product_title": (row.get("product_title") or "") or "",
+            "keyword": kw,
+            "product_title": pt,
+            "product_titles": titles,
         }
     if tt == "register":
         snap = row.get("address_snapshot")
@@ -774,10 +800,14 @@ class Database:
         self,
         task_type: str,
         keyword: str,
-        product_title: str,
+        product_titles: list[str],
         device_counts: list[tuple[str, int]],
         persist_data: bool = False,
     ) -> int:
+        titles = [t.strip() for t in product_titles if t and str(t).strip()]
+        if not titles:
+            return 0
+        primary = titles[0]
         n = 0
         pd = 1 if persist_data else 0
         with self._cursor() as (conn, cur):
@@ -787,7 +817,11 @@ class Database:
                 if not did:
                     continue
                 payload = json.dumps(
-                    {"keyword": keyword, "product_title": product_title},
+                    {
+                        "keyword": keyword,
+                        "product_title": primary,
+                        "product_titles": titles,
+                    },
                     ensure_ascii=False,
                 )
                 for _ in range(c):
@@ -962,10 +996,16 @@ class Database:
             tt = row["task_type"]
             if tt in CLICK_TASK_TYPES:
                 p = parse_task_params(row)
+                titles = p.get("product_titles")
+                if not isinstance(titles, list) or not titles:
+                    pt = (p.get("product_title") or "").strip()
+                    titles = [pt] if pt else []
+                primary = titles[0] if titles else ""
                 payload = json.dumps(
                     {
                         "keyword": p.get("keyword") or "",
-                        "product_title": p.get("product_title") or "",
+                        "product_title": primary,
+                        "product_titles": titles,
                     },
                     ensure_ascii=False,
                 )

@@ -78,7 +78,10 @@ export function deleteKeyword(id: number) {
 export function postBatchClick(body: {
   task_type: string
   keyword: string
-  product_title: string
+  /** 兼容单标题；与 product_titles 至少填一类 */
+  product_title?: string
+  /** 多标题（search_click 等）；优先于 product_title */
+  product_titles?: string[]
   mode: 'manual' | 'smart'
   device_ids: string[]
   per_device_counts: Record<string, number>

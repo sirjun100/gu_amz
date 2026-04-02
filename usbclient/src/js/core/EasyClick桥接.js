@@ -71,6 +71,294 @@ function AMZ_按包名启动应用(bundleId, logLine) {
   sleep(waitMs);
 }
 
+/**
+ * 脚本根（AMZ_SCRIPT_BASE）下 res 目录中的资源相对路径，供 image.readImage 使用。
+ * 请将找图小图放在与业务 js 同级的 res/ 下（若某步骤仍使用 image.findImage）
+ */
+
+var AMZ_点击坐标系同步键 = "";
+
+/**
+ * 对齐找图/触屏坐标系：EC 文档要求 BLE 使用与截屏一致的 setScreenSize，并按机型 setScale。
+ * agent 侧 adjustScreenOrientation(0) 可减少方向与坐标错位。
+ */
+function AMZ_同步BLE与截屏坐标系() {
+  var skip = false;
+  try {
+    var c = typeof AMZ_CONFIG !== "undefined" && AMZ_CONFIG != null ? AMZ_CONFIG.chrome : null;
+    if (c != null && c.syncTapCoordinateSystem === false) {
+      skip = true;
+    }
+  } catch (e0) {
+    /* ignore */
+  }
+  if (skip) {
+    return;
+  }
+  var full = AMZ_取全屏区域();
+  var w = Math.floor(full.ex - full.x);
+  var h = Math.floor(full.ey - full.y);
+  var key = w + "x" + h;
+  if (key === AMZ_点击坐标系同步键) {
+    return;
+  }
+  AMZ_点击坐标系同步键 = key;
+  try {
+    if (typeof adjustScreenOrientation === "function") {
+      adjustScreenOrientation(0);
+    }
+  } catch (e1) {
+    /* ignore */
+  }
+  try {
+    if (typeof bleEvent !== "undefined" && bleEvent != null) {
+      if (typeof bleEvent.setScreenSize === "function") {
+        bleEvent.setScreenSize(w, h);
+      }
+      var sc = 2.0;
+      if (typeof bleEvent.getIPhoneScale === "function") {
+        sc = bleEvent.getIPhoneScale();
+      }
+      if (typeof bleEvent.setScale === "function") {
+        bleEvent.setScale(sc, sc);
+      }
+    }
+  } catch (e2) {
+    /* ignore */
+  }
+}
+
+/**
+ * 屏幕像素坐标点击。Chrome 下单纯 clickPoint 常只触发亮屏/无响应；优先「按下-按住-抬起」或略长 press。
+ * BLE 路径依赖 AMZ_同步BLE与截屏坐标系（与 usbclient/ios-jslibs/bleEvent.js 说明一致）。
+ * @returns {string} 实际使用的点击方式，便于日志核对
+ */
+function AMZ_尝试点击坐标(x, y) {
+  var fx = Math.floor(Number(x));
+  var fy = Math.floor(Number(y));
+  if (isNaN(fx) || isNaN(fy)) {
+    throw new Error("AMZ_尝试点击坐标: 坐标无效 " + x + "," + y);
+  }
+  var hold = 120;
+  try {
+    var cfg = typeof AMZ_CONFIG !== "undefined" && AMZ_CONFIG != null ? AMZ_CONFIG.chrome : null;
+    if (cfg != null && Number(cfg.tapHoldMs) > 0) {
+      hold = Number(cfg.tapHoldMs);
+    }
+  } catch (eH) {
+    /* ignore */
+  }
+
+  AMZ_同步BLE与截屏坐标系();
+
+  try {
+    if (typeof touchDown === "function" && typeof touchUp === "function") {
+      touchDown(fx, fy);
+      sleep(hold);
+      touchUp(fx, fy);
+      return "touchDown+" + hold + "ms+touchUp";
+    }
+  } catch (e1) {
+    try {
+      if (typeof touchUp === "function") {
+        touchUp(fx, fy);
+      }
+    } catch (eUp) {
+      /* ignore */
+    }
+  }
+
+  try {
+    if (typeof press === "function") {
+      press(fx, fy, hold);
+      return "press(" + hold + "ms)";
+    }
+  } catch (e2) {
+    /* ignore */
+  }
+
+  try {
+    if (typeof clickPointPressure === "function") {
+      clickPointPressure(fx, fy, 0.38);
+      return "clickPointPressure(0.38)";
+    }
+  } catch (e3) {
+    /* ignore */
+  }
+
+  try {
+    if (typeof clickPoint === "function") {
+      clickPoint(fx, fy);
+      return "clickPoint";
+    }
+  } catch (e4) {
+    /* ignore */
+  }
+
+  try {
+    if (typeof bleEvent !== "undefined" && bleEvent != null) {
+      if (typeof bleEvent.mouseMove === "function") {
+        bleEvent.mouseMove(fx, fy);
+        sleep(40);
+      }
+      if (typeof bleEvent.press === "function") {
+        var br = bleEvent.press(fx, fy, hold);
+        if (br == null || br === "") {
+          return "bleEvent.press(" + hold + "ms)";
+        }
+      }
+      if (typeof bleEvent.clickPoint === "function") {
+        bleEvent.clickPoint(fx, fy);
+        return "bleEvent.clickPoint";
+      }
+    }
+  } catch (e5) {
+    /* ignore */
+  }
+
+  throw new Error("AMZ_尝试点击坐标: 无可用点击 API（touchDown/press/clickPoint/bleEvent）");
+}
+
+function AMZ_RES下文件路径(fileName) {
+  var n = fileName != null ? String(fileName).trim() : "";
+  if (n.length === 0) {
+    return "";
+  }
+  var base = "";
+  if (typeof AMZ_SCRIPT_BASE !== "undefined" && AMZ_SCRIPT_BASE != null) {
+    base = String(AMZ_SCRIPT_BASE).trim();
+  }
+  if (base.length === 0) {
+    return "res/" + n;
+  }
+  var last = base.charAt(base.length - 1);
+  if (last !== "/" && last !== "\\") {
+    base = base + "/";
+  }
+  return base + "res/" + n;
+}
+
+/**
+ * iOS EasyClick：向当前焦点输入框写入文本（无全局 input 对象时的替代方案）。
+ * 顺序：imeApi.paste / imeApi.input → inputText → agentEvent.inputText → typingText → input.text
+ */
+function AMZ_输入法尝试输入文本(text) {
+  var s = text != null ? String(text) : "";
+  if (s.length === 0) {
+    return false;
+  }
+  var imeReady = true;
+  try {
+    if (typeof imeApi !== "undefined" && imeApi != null && typeof imeApi.isOk === "function") {
+      imeReady = imeApi.isOk() === true;
+    }
+  } catch (e0) {
+    imeReady = false;
+  }
+  try {
+    if (imeReady && typeof imeApi !== "undefined" && imeApi != null) {
+      if (typeof imeApi.paste === "function") {
+        var p = imeApi.paste(s);
+        if (p != null && String(p).length > 0) {
+          logd("imeApi.paste OK => " + p);
+          return true;
+        }
+      }
+      if (typeof imeApi.input === "function") {
+        var q = imeApi.input(s);
+        if (q != null && String(q).length > 0) {
+          logd("imeApi.input OK => " + q);
+          return true;
+        }
+      }
+    }
+  } catch (e1) {
+    logw("imeApi 输入: " + e1);
+  }
+  var dur = 200;
+  try {
+    if (AMZ_CONFIG != null && AMZ_CONFIG.chrome != null && Number(AMZ_CONFIG.chrome.inputTextDurationMs) > 0) {
+      dur = Number(AMZ_CONFIG.chrome.inputTextDurationMs);
+    }
+  } catch (eDur) {}
+  try {
+    if (typeof inputText === "function") {
+      var ok = inputText(s, dur);
+      logd("inputText(" + dur + "ms) => " + ok);
+      if (ok === true) {
+        return true;
+      }
+    }
+  } catch (e2) {
+    logw("inputText: " + e2);
+  }
+  try {
+    if (typeof agentEvent !== "undefined" && agentEvent != null && typeof agentEvent.inputText === "function") {
+      var ok2 = agentEvent.inputText(s, dur);
+      logd("agentEvent.inputText(" + dur + "ms) => " + ok2);
+      if (ok2 === true) {
+        return true;
+      }
+    }
+  } catch (e3) {
+    logw("agentEvent.inputText: " + e3);
+  }
+  try {
+    if (typeof typingText === "function") {
+      var ok3 = typingText(s);
+      logd("typingText => " + ok3);
+      if (ok3 === true) {
+        return true;
+      }
+    }
+  } catch (e4) {
+    logw("typingText: " + e4);
+  }
+  try {
+    if (typeof input !== "undefined" && input != null && typeof input.text === "function") {
+      var r = input.text(s);
+      logd("input.text => " + r);
+      return true;
+    }
+  } catch (e5) {
+    logw("input.text: " + e5);
+  }
+  return false;
+}
+
+/** 回车：优先 imeApi.pressEnter，其次 bleEvent.systemKey / systemKey */
+function AMZ_输入法尝试回车() {
+  try {
+    if (typeof imeApi !== "undefined" && imeApi != null && typeof imeApi.pressEnter === "function") {
+      if (imeApi.pressEnter() === true) {
+        logd("imeApi.pressEnter OK");
+        return true;
+      }
+    }
+  } catch (e) {
+    logw("imeApi.pressEnter: " + e);
+  }
+  try {
+    if (typeof bleEvent !== "undefined" && bleEvent != null && typeof bleEvent.systemKey === "function") {
+      bleEvent.systemKey("enter");
+      logd("bleEvent.systemKey(enter)");
+      return true;
+    }
+  } catch (e2) {
+    logw("bleEvent.systemKey: " + e2);
+  }
+  try {
+    if (typeof systemKey === "function") {
+      systemKey("enter");
+      logd("systemKey(enter)");
+      return true;
+    }
+  } catch (e3) {
+    logw("systemKey: " + e3);
+  }
+  return false;
+}
+
 function AMZ_取全屏区域() {
   var w = 1170;
   var h = 2532;

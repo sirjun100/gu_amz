@@ -37,11 +37,14 @@ function main() {
         exit();
         return;
     }
+
+    // 打开辅助触控（悬浮球）
+    var result = setAssistiveTouch(true);
+    logd("开启结果: " + result);
+    sleep(2000);
+
     logd("开始执行脚本...")
 
-    if (!netcardProcessor()) {
-        return;
-    }
 
     AMZ_启动亚马逊任务循环();
 }
@@ -60,47 +63,5 @@ function autoServiceStart(time) {
     return isServiceOk();
 }
 
-function netcardProcessor() {
-    logd("开始进行卡密验证")
-    // 官方自带的卡密系统
-    // appId 和 appSecret的值 请到 http://uc.ieasyclick.com/ 进行注册后提卡
-    let appId = "";
-    let appSecret = "";
-    let uiparam = readAllUIConfig();
-    let cardNo = "";
-    try {
-        cardNo = uiparam["cardNo"]
-    } catch (e) {
-    }
-
-    if (cardNo == null || cardNo == undefined || cardNo.length <= 0) {
-        loge("请输入卡密")
-        exit()
-        return false;
-    }
-    let inited = ecNetCard.netCardInit(appId, appSecret, "2")
-    logd("inited card => " + JSON.stringify(inited));
-    let bind = ecNetCard.netCardBind(cardNo)
-    let bindResult = false;
-    if (bind != null && bind != undefined && bind["code"] == 0) {
-        logd("卡密绑定成功")
-        let leftDays = bind['data']['leftDays'] + "天";
-        logd("剩余时间：" + leftDays);
-        logd("激活时间：" + bind['data']['startTime'])
-        logd("过期时间：" + bind['data']['expireTime'])
-        bindResult = true;
-        logd("卡密剩余时间:" + leftDays)
-    } else {
-        if (bind == null || bind == undefined) {
-            loge("卡密绑定失败,无返回值 ")
-            let msg = "卡密绑定失败,无返回值"
-            loge(msg)
-        } else {
-            let msg = "卡密绑定失败: " + bind["msg"]
-            loge(msg)
-        }
-    }
-    return bindResult;
-}
 
 main();

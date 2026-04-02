@@ -114,7 +114,9 @@ class DeviceScreenshotPolicyBody(BaseModel):
 class BatchClickTasksBody(BaseModel):
     task_type: str = Field(..., min_length=1)
     keyword: str = Field(..., min_length=1)
-    product_title: str = Field(..., min_length=1)
+    """兼容旧客户端：单标题；与 product_titles 二选一或合并（见 batch-click 校验）"""
+    product_title: str = Field("", min_length=0)
+    product_titles: list[str] = Field(default_factory=list)
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
     per_device_counts: dict[str, int] = Field(default_factory=dict)
@@ -414,10 +416,16 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
     if not pairs:
         raise HTTPException(status_code=400, detail="没有可创建的任务数量")
+    titles = [str(t).strip() for t in (body.product_titles or []) if str(t).strip()]
+    one = (body.product_title or "").strip()
+    if not titles and one:
+        titles = [one]
+    if not titles:
+        raise HTTPException(status_code=400, detail="请至少填写一个产品标题（可多行）")
     n = db.insert_click_tasks_batch(
         body.task_type,
         body.keyword.strip(),
-        body.product_title.strip(),
+        titles,
         pairs,
         persist_data=body.save_data_record,
     )

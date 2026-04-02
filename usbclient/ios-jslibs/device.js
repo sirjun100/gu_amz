@@ -70,7 +70,7 @@ DeviceWrapper.prototype.getScreenHeight = function () {
     return deviceWrapper.getScreenHeight();
 };
 /**
- * 获取设备号（amz 运维后台 device_id 建议使用此值，见 usbclient/src/js/core/EasyClick桥接.js AMZ_应用设备标识）
+ * 获取设备号
  * @return {null|string}
  */
 DeviceWrapper.prototype.getDeviceId = function () {
