@@ -128,6 +128,47 @@ function AMZ_同步BLE与截屏坐标系() {
   }
 }
 
+function 点击图片位置(fileName){
+  // 1. 申请权限
+  let req = startEnv();
+  if (!req) {
+    logd("申请权限失败");
+    return;
+  }
+  sleep(1000);
+
+  // 2. 读取模板
+  let templateImg = readResAutoImage(fileName);
+  if (templateImg == null) {
+    logd("读取模板图片失败");
+    return;
+  }
+
+  // 3. 截屏
+  let screenImg = image.captureFullScreen();
+  if (screenImg == null) {
+    logd("截屏失败");
+    image.recycle(templateImg);
+    return;
+  }
+
+  // 4. 透明找图
+  // 参数说明: (大图, 小图, x1, y1, x2, y2, threshold, limit)
+  let points = image.findImageByColor(screenImg, templateImg, 0, 0, 0, 0, 0.8, 1);
+  logd("找图结果: " + JSON.stringify(points));
+
+  // 5. 处理结果并点击
+  if (points && points.length > 0) {
+    for (let i = 0; i < points.length; i++) {
+      let point = points[i];
+      logd("找到坐标: (" + point.x + ", " + point.y + ")");
+      clickPoint(point.x, point.y);
+    }
+  } else {
+    logd("未找到图片");
+  }
+}
+
 /**
  * 屏幕像素坐标点击。Chrome 下单纯 clickPoint 常只触发亮屏/无响应；优先「按下-按住-抬起」或略长 press。
  * BLE 路径依赖 AMZ_同步BLE与截屏坐标系（与 usbclient/ios-jslibs/bleEvent.js 说明一致）。
@@ -490,39 +531,4 @@ function AMZ_坐标兜底点击() {
   return true;
 }
 
-function AMZ_确保AMG已打开() {
-  var bid = String(AMZ_CONFIG.bundleIdAmg || "").trim();
-  var retry = 1;
-  try {
-    var t = Number(AMZ_CONFIG.amg.launchRetry);
-    if (!isNaN(t) && t >= 0 && t <= 3) {
-      retry = t;
-    }
-  } catch (e) {
-    /* ignore */
-  }
-  for (var i = 0; i <= retry; i++) {
-    AMZ_按包名启动应用(bid, "步骤: 打开AMG（第 " + (i + 1) + " 次）");
-    var frontOk = AMZ_当前前台是否目标包(bid);
-    var colorOk = AMZ_按涂色判断AMG界面();
-    if (frontOk) {
-      logd("前台包名已切到 AMG: " + bid);
-    }
-    if (colorOk) {
-      日志收集器.添加("AMG 界面校验通过（涂色命中）");
-      return true;
-    }
-    logw("AMG 涂色校验未通过，准备重试");
-  }
 
-  日志收集器.添加("AMG 包名启动未通过，尝试图标找色/坐标兜底");
-  var clicked = AMZ_图标找色并点击();
-  if (!clicked) {
-    clicked = AMZ_坐标兜底点击();
-  }
-  if (clicked && AMZ_按涂色判断AMG界面()) {
-    日志收集器.添加("AMG 通过图标点击后校验通过");
-    return true;
-  }
-  return false;
-}

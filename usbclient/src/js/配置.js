@@ -7,7 +7,7 @@ var AMZ_CONFIG = {
   /** 默认由 EasyClick device.getDeviceId() 填充；无设备 API 时可由界面 deviceId 回退 */
   deviceId: "",
   /** AMG 在 iOS 上的 Bundle Identifier（真机以安装包为准，必填方能打开 AMG） */
-  bundleIdAmg: "",
+  bundleIdAmg: "com.coretwelve.amgexperience",
   /** Google Chrome（iOS 常见为 com.google.chrome.ios，若地区/版本不同请在界面覆盖） */
   bundleIdChrome: "com.google.chrome.ios",
   /**
@@ -112,11 +112,25 @@ var AMZ_CONFIG = {
     /** 列表里找不到标题时下滑次数上限（单轮探测失败后的滑动） */
     findProductMaxScrollAttempts: 45,
     /** 搜索 results 列表累计停留真实分钟（仅列表计时，进详情不算）；到时结束本步骤 */
-    listBrowseMinMinutes: 2,
-    listBrowseMaxMinutes: 4,
+    listBrowseMinMinutes: 4,
+    listBrowseMaxMinutes: 6,
+    /** true：labelMatch/label 仅匹配无障碍 visible 的节点，减少屏外命中导致空点 */
+    requireTitleMatchVisible: true,
+    /** 点商品后探测详情：用于确认跳转成功；空则用 keywordBrowse.addToCartAccessibilityName */
+    detailConfirmAccessibilityName: "",
+    detailConfirmTimeoutMs: 3500,
+    /** true：探测 Add to cart 时要求 visible */
+    detailConfirmRequireVisible: true,
+    /** 结果列表找小图：findImageByColor 阈值 0～1 */
+    listTemplateFindThreshold: 0.8,
+    /** clickExFirst：Link 可点时优先 clickEx；clickCenter：仅中心点 */
+    productLinkClickStrategy: "clickExFirst",
     /** 详情页单次进入后随机浏览真实分钟（不受 demoMode 压缩） */
     detailBrowseMinMinutes: 1,
     detailBrowseMaxMinutes: 3,
+    /** 详情页每次滑动后的休息（毫秒随机区间），默认约 5～8 秒 */
+    detailSwipePauseMinMs: 5000,
+    detailSwipePauseMaxMs: 8000,
     /** 详情返回列表；空字符串则用 keywordBrowse.backAccessibilityName */
     backAccessibilityName: "",
   },
@@ -127,11 +141,23 @@ var AMZ_CONFIG = {
   /** 压缩临时图默认格式：webp 更小；若运行时不支持会自动回退 jpg */
   screenshotFormat: "webp",
   /**
-   * AMG 打开与校验配置（按「包名启动 -> 涂色校验 -> 重试 -> 图标找色/坐标兜底」）
+   * AMG：打开步骤为桌面找图点击（res/launchIconFileName）；涂色/找色等为后续校验可选项。
    */
   amg: {
     launchRetry: 1,
     launchWaitMs: 2500,
+    /**
+     * 不知道完整 Bundle ID 时可填前缀（或逗号分隔多个候选前缀），走 appLaunchByPrefix；
+     * 与 bundleIdAmg 二选一优先用 bundleIdAmg（非空则 appLaunch）。
+     */
+    bundleIdPrefix: "",
+    /** 打开 AMG：res/ 下找图文件名（此步骤为找图点击桌面图标） */
+    launchIconFileName: "AMG.png",
+    launchIconFindWeak: 0.72,
+    launchIconFindThreshold: 0.88,
+    launchIconMatchMethod: 5,
+    launchIconFindAttempts: 25,
+    launchIconFindIntervalMs: 500,
     verifyColorPoints: "",
     verifyThreshold: 0.9,
     verifyRect: { x: 0, y: 0, ex: 0, ey: 0 },
@@ -216,6 +242,9 @@ function 初始化配置从界面() {
     }
     if (u["bundleIdAmg"] != null && String(u["bundleIdAmg"]).trim().length > 0) {
       AMZ_CONFIG.bundleIdAmg = String(u["bundleIdAmg"]).trim();
+    }
+    if (u["amgBundleIdPrefix"] != null && String(u["amgBundleIdPrefix"]).trim().length > 0) {
+      AMZ_CONFIG.amg.bundleIdPrefix = String(u["amgBundleIdPrefix"]).trim();
     }
     if (u["bundleIdChrome"] != null && String(u["bundleIdChrome"]).trim().length > 0) {
       AMZ_CONFIG.bundleIdChrome = String(u["bundleIdChrome"]).trim();

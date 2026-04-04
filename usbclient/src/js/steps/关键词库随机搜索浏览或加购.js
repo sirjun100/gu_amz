@@ -305,40 +305,44 @@ function 关键词浏览_搜索回车HID() {
  * 点加购 → 等待页面跳转（常进购物车）→ 轮询点 Back 返回列表/详情外 → 再等待 afterBackPause（默认 5～10s）再继续浏览。
  * @param {number|null} deadlineMs 浏览阶段截止，睡眠不越过
  */
-function 关键词浏览_尝试加购一回(cfg, deadlineMs) {
-  var addNode = 关键词浏览_取加购节点(cfg);
-  if (addNode == null) {
-    return false;
-  }
-  if (!关键词浏览_点加购节点(addNode, cfg)) {
-    return false;
-  }
-  日志收集器.添加("关键词浏览: 已点 Add to cart");
-  关键词浏览_sleepMs(5000, 8000);
-  var backNode = null;
-  var bi = 0;
-  for (bi = 0; bi < cfg.backAfterAddPollAttempts; bi++) {
-    if (deadlineMs != null && 关键词浏览_当前时间戳() >= deadlineMs) {
-      break;
-    }
-    backNode = 关键词浏览_取节点(cfg.backName, cfg.backPollTimeoutMs);
-    if (backNode != null) {
-      break;
-    }
-    关键词浏览_sleepMs(cfg.backPollGapMinMs, cfg.backPollGapMaxMs);
-  }
-  if (backNode != null) {
-    try {
-      backNode.clickCenter();
-      日志收集器.添加("关键词浏览: 已点返回 " + cfg.backName);
-    } catch (e2) {
-      logw("Back clickCenter: " + e2);
-    }
-  } else {
-    日志收集器.添加("关键词浏览: 未找到返回节点 " + cfg.backName + "（已轮询 " + cfg.backAfterAddPollAttempts + " 次）");
-  }
-  关键词浏览_区间等待可截断(deadlineMs, cfg.afterBackPauseMinMs, cfg.afterBackPauseMaxMs);
-  return true;
+function 关键词浏览_尝试加购一回(cfg, deadlineMs)
+{
+
+  日志收集器.添加("关键词浏览: 模拟点击购物车失败");
+  return false;
+  // var addNode = 关键词浏览_取加购节点(cfg);
+  // if (addNode == null) {
+  //   return false;
+  // }
+  // if (!关键词浏览_点加购节点(addNode, cfg)) {
+  //   return false;
+  // }
+  // 日志收集器.添加("关键词浏览: 已点 Add to cart");
+  // 关键词浏览_sleepMs(5000, 8000);
+  // var backNode = null;
+  // var bi = 0;
+  // for (bi = 0; bi < cfg.backAfterAddPollAttempts; bi++) {
+  //   if (deadlineMs != null && 关键词浏览_当前时间戳() >= deadlineMs) {
+  //     break;
+  //   }
+  //   backNode = 关键词浏览_取节点(cfg.backName, cfg.backPollTimeoutMs);
+  //   if (backNode != null) {
+  //     break;
+  //   }
+  //   关键词浏览_sleepMs(cfg.backPollGapMinMs, cfg.backPollGapMaxMs);
+  // }
+  // if (backNode != null) {
+  //   try {
+  //     backNode.clickCenter();
+  //     日志收集器.添加("关键词浏览: 已点返回 " + cfg.backName);
+  //   } catch (e2) {
+  //     logw("Back clickCenter: " + e2);
+  //   }
+  // } else {
+  //   日志收集器.添加("关键词浏览: 未找到返回节点 " + cfg.backName + "（已轮询 " + cfg.backAfterAddPollAttempts + " 次）");
+  // }
+  // 关键词浏览_区间等待可截断(deadlineMs, cfg.afterBackPauseMinMs, cfg.afterBackPauseMaxMs);
+  // return true;
 }
 
 /**

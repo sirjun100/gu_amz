@@ -9,7 +9,14 @@ var AMZ_亚马逊首页URL = "https://www.amazon.com";
 function 打开亚马逊首页() {
   AMZ_执行标准步骤("打开亚马逊首页", function () {
     var node = name("NTPHomeFakeOmniboxAccessibilityID").getOneNodeInfo(5000); // 需要实际探查类名
-    node.clickCenter();
+    if(node==null || node == undefined){
+      var addresNode = name("Address and search bar").getOneNodeInfo(5000);
+      if(addresNode){
+        addresNode.clickCenter();
+      }
+    }else{
+      node.clickCenter();
+    }
     sleep(随机区间(600, 1200));
     日志收集器.添加("输入网址: " + AMZ_亚马逊首页URL);
     AMZ_输入法尝试输入文本(AMZ_亚马逊首页URL);
