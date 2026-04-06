@@ -26,3 +26,7 @@ function 随机等待分钟(min分钟, max分钟) {
   logd("等待 " + m + " 分钟");
   AMZ_分段睡眠并维持心跳(m * 60 * 1000);
 }
+
+function 随机选择(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}

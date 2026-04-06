@@ -1,7 +1,7 @@
 import json
 import os
 from contextlib import contextmanager
-from datetime import timezone
+from datetime import date, timezone
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -18,22 +18,31 @@ CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
 
 
+def normalize_target_asin(raw: str | None) -> str:
+    """Amazon ASIN：去空白、大写；长度 10～16，仅字母数字。"""
+    s = "".join((raw or "").strip().upper().split())
+    if len(s) < 10 or len(s) > 16 or not s.isalnum():
+        return ""
+    return s
+
+
 def normalize_screenshot_upload_policy(value: str | None) -> str:
     s = (value or "all").strip().lower()
     return s if s in SCREENSHOT_UPLOAD_POLICIES else "all"
 
 
 def _normalize_click_params_dict(obj: dict) -> dict:
-    """点击类 params 对外统一为 keyword + product_titles（兼容旧 JSON 里仅有 product_title）。"""
-    pt = (obj.get("product_title") or "").strip()
-    arr = obj.get("product_titles")
-    titles: list[str] = []
-    if isinstance(arr, list):
-        titles = [str(x).strip() for x in arr if x is not None and str(x).strip()]
-    if not titles and pt:
-        titles = [pt]
+    """点击类 params：keyword + res_folder_name（1:1）。兼容旧 JSON 中的 product_title(s)。"""
     kw = (obj.get("keyword") or "") or ""
-    return {"keyword": kw, "product_titles": titles}
+    fn = (obj.get("res_folder_name") or "").strip()
+    if not fn:
+        pt = (obj.get("product_title") or "").strip()
+        arr = obj.get("product_titles")
+        if isinstance(arr, list) and arr:
+            fn = str(arr[0]).strip()
+        elif pt:
+            fn = pt
+    return {"keyword": kw, "res_folder_name": fn}
 
 
 def parse_task_params(row: dict | None) -> dict:
@@ -60,8 +69,7 @@ def parse_task_params(row: dict | None) -> dict:
     if tt in CLICK_TASK_TYPES:
         kw = (row.get("keyword") or "") or ""
         pt = (row.get("product_title") or "") or ""
-        titles = [pt] if pt.strip() else []
-        return {"keyword": kw, "product_titles": titles}
+        return {"keyword": kw, "res_folder_name": pt.strip()}
     if tt == "register":
         snap = row.get("address_snapshot")
         snap_obj: dict | str | None = None
@@ -210,8 +218,28 @@ class Database:
         self._migrate_tasks_persist_data()
         self._migrate_app_settings_and_saved_records()
         self._migrate_devices_screenshot_upload_policy()
+        self._migrate_target_asins()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
+
+    def _migrate_target_asins(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS target_asins (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    asin VARCHAR(16) NOT NULL,
+                    note VARCHAR(512) NULL,
+                    total_clicks INT NOT NULL DEFAULT 0,
+                    today_clicks INT NOT NULL DEFAULT 0,
+                    stats_date DATE NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_target_asins_asin (asin),
+                    INDEX idx_target_asins_stats_date (stats_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
 
     def _migrate_task_images_description(self):
         with self._cursor() as (conn, cur):
@@ -490,10 +518,9 @@ class Database:
             tt = row["task_type"] or ""
             if tt in CLICK_TASK_TYPES:
                 pt = (row.get("product_title") or "") or ""
-                titles = [pt.strip()] if pt.strip() else []
                 obj = {
                     "keyword": (row.get("keyword") or "") or "",
-                    "product_titles": titles,
+                    "res_folder_name": pt.strip(),
                 }
             elif tt == "register":
                 snap = row.get("address_snapshot")
@@ -762,6 +789,108 @@ class Database:
             cur.execute("DELETE FROM us_addresses WHERE id = %s", (aid,))
             return cur.rowcount > 0
 
+    def list_target_asins_paginated(self, page: int, per_page: int, q: str | None):
+        offset = (page - 1) * per_page
+        where = "1=1"
+        params: list = []
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            where += " AND (asin LIKE %s OR note LIKE %s)"
+            params.extend([like, like])
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM target_asins WHERE {where}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"""
+                SELECT * FROM target_asins WHERE {where}
+                ORDER BY id DESC LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def target_asin_get(self, tid: int):
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM target_asins WHERE id = %s", (tid,))
+            return cur.fetchone()
+
+    def target_asin_create(self, asin_raw: str, note: str | None) -> int:
+        norm = normalize_target_asin(asin_raw)
+        if not norm:
+            raise ValueError("BAD_ASIN")
+        note_s = (note or "").strip() or None
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO target_asins (asin, note, total_clicks, today_clicks, stats_date)
+                VALUES (%s, %s, 0, 0, NULL)
+                """,
+                (norm, note_s),
+            )
+            return int(cur.lastrowid)
+
+    def target_asin_update(self, tid: int, asin_raw: str | None, note: str | None) -> bool:
+        row = self.target_asin_get(tid)
+        if not row:
+            return False
+        new_asin = row["asin"]
+        if asin_raw is not None:
+            norm = normalize_target_asin(asin_raw)
+            if not norm:
+                raise ValueError("BAD_ASIN")
+            new_asin = norm
+        new_note = row.get("note")
+        if note is not None:
+            new_note = note.strip() or None
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE target_asins SET asin=%s, note=%s WHERE id=%s
+                """,
+                (new_asin, new_note, tid),
+            )
+            return cur.rowcount > 0
+
+    def target_asin_delete(self, tid: int) -> bool:
+        with self._cursor() as (conn, cur):
+            cur.execute("DELETE FROM target_asins WHERE id = %s", (tid,))
+            return cur.rowcount > 0
+
+    def increment_target_asin_click(self, asin_norm: str) -> dict | None:
+        """按已规范化的 ASIN 累加 total / today（按服务端当日日期换日清零 today）。"""
+        if not asin_norm:
+            return None
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, total_clicks, today_clicks, stats_date FROM target_asins WHERE asin = %s FOR UPDATE",
+                (asin_norm,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            today = date.today()
+            sd = row.get("stats_date")
+            if hasattr(sd, "date"):
+                sd = sd.date()
+            tc = int(row["total_clicks"] or 0)
+            tdy = int(row["today_clicks"] or 0)
+            if sd is None or sd != today:
+                tdy = 0
+            tdy += 1
+            tc += 1
+            cur.execute(
+                """
+                UPDATE target_asins SET total_clicks=%s, today_clicks=%s, stats_date=%s WHERE id=%s
+                """,
+                (tc, tdy, today, row["id"]),
+            )
+            return {
+                "asin": asin_norm,
+                "total_clicks": tc,
+                "today_clicks": tdy,
+            }
+
     def addresses_import_rows(self, rows: list[dict]) -> int:
         n = 0
         with self._cursor() as (conn, cur):
@@ -796,12 +925,12 @@ class Database:
         self,
         task_type: str,
         keyword: str,
-        product_titles: list[str],
+        res_folder_name: str,
         device_counts: list[tuple[str, int]],
         persist_data: bool = False,
     ) -> int:
-        titles = [t.strip() for t in product_titles if t and str(t).strip()]
-        if not titles:
+        fn = (res_folder_name or "").strip()
+        if not fn:
             return 0
         n = 0
         pd = 1 if persist_data else 0
@@ -812,7 +941,7 @@ class Database:
                 if not did:
                     continue
                 payload = json.dumps(
-                    {"keyword": keyword, "product_titles": titles},
+                    {"keyword": keyword, "res_folder_name": fn},
                     ensure_ascii=False,
                 )
                 for _ in range(c):
@@ -892,16 +1021,13 @@ class Database:
             raise ValueError("REGISTER_DEVICE_COUNT_MISMATCH")
         return n
 
-    def list_tasks_filtered(
+    def _task_center_list_where(
         self,
-        page: int,
-        per_page: int,
         device_id: str | None,
         status: str | None,
         task_type: str | None,
-        params_contains: str | None = None,
-    ):
-        offset = (page - 1) * per_page
+        params_contains: str | None,
+    ) -> tuple[str, list]:
         where = ["1=1"]
         params: list = []
         if device_id:
@@ -924,7 +1050,19 @@ class Database:
                 ") LIKE %s)"
             )
             params.extend([needle, needle])
-        wsql = " AND ".join(where)
+        return " AND ".join(where), params
+
+    def list_tasks_filtered(
+        self,
+        page: int,
+        per_page: int,
+        device_id: str | None,
+        status: str | None,
+        task_type: str | None,
+        params_contains: str | None = None,
+    ):
+        offset = (page - 1) * per_page
+        wsql, params = self._task_center_list_where(device_id, status, task_type, params_contains)
         with self._cursor() as (conn, cur):
             cur.execute(f"SELECT COUNT(*) AS c FROM tasks t WHERE {wsql}", params)
             total = cur.fetchone()["c"]
@@ -978,6 +1116,26 @@ class Database:
             cur.execute("DELETE FROM tasks WHERE id = %s", (task_id,))
             return cur.rowcount > 0, names
 
+    def delete_tasks_matching_filters(
+        self,
+        device_id: str | None,
+        status: str | None,
+        task_type: str | None,
+        params_contains: str | None,
+    ) -> tuple[int, list[str]]:
+        """Delete tasks matching the same filters as task center list; CASCADE removes logs/images rows.
+        Returns (deleted_task_count, stored_names for disk cleanup)."""
+        wsql, params = self._task_center_list_where(device_id, status, task_type, params_contains)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"SELECT ti.stored_name FROM task_images ti INNER JOIN tasks t ON t.id = ti.task_id WHERE {wsql}",
+                params,
+            )
+            names = [r["stored_name"] for r in cur.fetchall()]
+            cur.execute(f"DELETE t FROM tasks t WHERE {wsql}", params)
+            deleted = int(cur.rowcount or 0)
+        return deleted, names
+
     def clone_task_redo(self, task_id: int) -> int | None:
         with self._cursor() as (conn, cur):
             cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
@@ -987,13 +1145,11 @@ class Database:
             tt = row["task_type"]
             if tt in CLICK_TASK_TYPES:
                 p = parse_task_params(row)
-                titles = p.get("product_titles")
-                if not isinstance(titles, list) or not titles:
-                    titles = []
+                fn = (p.get("res_folder_name") or "").strip()
                 payload = json.dumps(
                     {
                         "keyword": p.get("keyword") or "",
-                        "product_titles": titles,
+                        "res_folder_name": fn,
                     },
                     ensure_ascii=False,
                 )

@@ -6,6 +6,7 @@ import {
   fetchTaskCenterDetail,
   postTaskRetry,
   deleteTaskCenterTask,
+  deleteTaskCenterTasksMatchingFilters,
   postTaskRedo,
 } from '@/api/amzApi'
 import type { DeviceOption, TaskCenterDetail, TaskScreenshotRow } from '@/types/amz'
@@ -24,7 +25,7 @@ function formatParamsFullJson(params: unknown): string {
 
 const PARAM_DISPLAY_KEY_ORDER = [
   'keyword',
-  'product_titles',
+  'res_folder_name',
   'phone',
   'username',
   'password',
@@ -351,6 +352,7 @@ export function TaskCenterPage() {
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [snapshotItems, setSnapshotItems] = useState<SnapshotItem[]>([])
   const [snapshotIndex, setSnapshotIndex] = useState(0)
+  const [deleteAllBusy, setDeleteAllBusy] = useState(false)
 
   const closeSnapshot = useCallback(() => {
     setSnapshotItems((prev) => {
@@ -500,6 +502,36 @@ export function TaskCenterPage() {
     }
   }
 
+  const onDeleteAllMatching = async () => {
+    const hasFilter = Boolean(deviceId || status || taskType || paramsQ.trim())
+    const scope = hasFilter
+      ? '当前筛选条件下的全部任务（与上方设备/状态/类型/params 筛选一致）'
+      : '数据库中的全部任务（当前未设筛选）'
+    if (
+      !confirm(
+        `确定删除${scope}？\n\n列表显示约 ${data.total} 条；删除后关联执行日志与截图文件将一并清除，不可恢复。`
+      )
+    ) {
+      return
+    }
+    setDeleteAllBusy(true)
+    try {
+      const r = await deleteTaskCenterTasksMatchingFilters({
+        device_id: deviceId || undefined,
+        status: status || undefined,
+        task_type: taskType || undefined,
+        params_q: paramsQ.trim() || undefined,
+      })
+      addToast({ message: `已删除 ${r.deleted} 条任务`, type: 'success' })
+      closeDetail()
+      await loadTasks()
+    } catch {
+      addToast({ message: '批量删除失败', type: 'error' })
+    } finally {
+      setDeleteAllBusy(false)
+    }
+  }
+
   const onRedo = async (taskId: number) => {
     if (
       !confirm('将新建一条「再做一次」任务：点击类参数与原任务相同；注册类会保留手机号并重新随机地址、姓名与密码。是否继续？')
@@ -591,6 +623,14 @@ export function TaskCenterPage() {
           className="px-3 py-1.5 rounded-md bg-slate-100 dark:bg-slate-700 text-sm text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600"
         >
           刷新
+        </button>
+        <button
+          type="button"
+          disabled={deleteAllBusy || loading || data.total === 0}
+          onClick={() => void onDeleteAllMatching()}
+          className="px-3 py-1.5 rounded-md text-sm border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-45"
+        >
+          {deleteAllBusy ? '删除中…' : '删除全部任务'}
         </button>
       </div>
 

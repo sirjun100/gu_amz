@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import jwt
+import pymysql
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -18,7 +19,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .db import db, parse_task_params
+from .db import db, normalize_target_asin, parse_task_params
 from .task_report_parse import parse_task_report_footer
 from .paths import STATIC_WEB_DIR, TASK_IMAGE_DIR, ensure_data_dir
 
@@ -114,9 +115,20 @@ class DeviceScreenshotPolicyBody(BaseModel):
 class BatchClickTasksBody(BaseModel):
     task_type: str = Field(..., min_length=1)
     keyword: str = Field(..., min_length=1)
-    """兼容旧客户端：单标题；与 product_titles 二选一或合并（见 batch-click 校验）"""
-    product_title: str = Field("", min_length=0)
-    product_titles: list[str] = Field(default_factory=list)
+    res_folder_name: str = Field(
+        "",
+        min_length=0,
+        description="与关键词 1:1；客户端 res 下资源目录名",
+    )
+    product_title: str = Field(
+        "",
+        min_length=0,
+        description="已废弃，仅兼容旧请求体",
+    )
+    product_titles: list[str] = Field(
+        default_factory=list,
+        description="已废弃，仅兼容旧请求体",
+    )
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
     per_device_counts: dict[str, int] = Field(default_factory=dict)
@@ -155,8 +167,23 @@ class UsAddressBody(BaseModel):
     full_line: str | None = None
 
 
+class TargetAsinCreateBody(BaseModel):
+    asin: str = Field(..., min_length=1, max_length=32)
+    note: str = Field("", max_length=512)
+
+
+class TargetAsinPatchBody(BaseModel):
+    asin: str | None = Field(None, min_length=1, max_length=32)
+    note: str | None = Field(None, max_length=512)
+
+
 class HeartbeatBody(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=128)
+
+
+class ClientAsinClickBody(BaseModel):
+    device_id: str = Field(..., min_length=1, max_length=128)
+    asin: str = Field(..., min_length=1, max_length=32)
 
 
 class TaskReportParsePreviewBody(BaseModel):
@@ -416,16 +443,20 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
     if not pairs:
         raise HTTPException(status_code=400, detail="没有可创建的任务数量")
-    titles = [str(t).strip() for t in (body.product_titles or []) if str(t).strip()]
-    one = (body.product_title or "").strip()
-    if not titles and one:
-        titles = [one]
-    if not titles:
-        raise HTTPException(status_code=400, detail="请至少填写一个产品标题（可多行）")
+    fn = (body.res_folder_name or "").strip()
+    if not fn:
+        legacy = [str(t).strip() for t in (body.product_titles or []) if str(t).strip()]
+        one = (body.product_title or "").strip()
+        if legacy:
+            fn = legacy[0]
+        elif one:
+            fn = one
+    if not fn:
+        raise HTTPException(status_code=400, detail="请填写资源文件夹名 res_folder_name（与关键词 1:1）")
     n = db.insert_click_tasks_batch(
         body.task_type,
         body.keyword.strip(),
-        titles,
+        fn,
         pairs,
         persist_data=body.save_data_record,
     )
@@ -596,6 +627,68 @@ async def admin_addresses_import_xlsx(user: CurrentUser, file: UploadFile = File
     return {"ok": True, "imported": n}
 
 
+@app.get("/api/v1/admin/target-asins", response_model=PaginatedRows)
+async def admin_target_asins_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    total, rows = db.list_target_asins_paginated(page, per_page, q)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.post("/api/v1/admin/target-asins")
+async def admin_target_asin_create(user: CurrentUser, body: TargetAsinCreateBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    try:
+        aid = db.target_asin_create(body.asin, body.note or None)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="ASIN 已存在")
+    return {"ok": True, "id": aid}
+
+
+@app.get("/api/v1/admin/target-asins/{asin_id}")
+async def admin_target_asin_get(user: CurrentUser, asin_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    row = db.target_asin_get(asin_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="不存在")
+    return _serialize_row(row)
+
+
+@app.put("/api/v1/admin/target-asins/{asin_id}")
+async def admin_target_asin_update(user: CurrentUser, asin_id: int, body: TargetAsinPatchBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if body.asin is None and body.note is None:
+        raise HTTPException(status_code=400, detail="请至少提供一个要修改的字段")
+    try:
+        ok = db.target_asin_update(asin_id, body.asin, body.note)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="ASIN 与其他记录冲突")
+    if not ok:
+        raise HTTPException(status_code=404, detail="不存在")
+    return {"ok": True}
+
+
+@app.delete("/api/v1/admin/target-asins/{asin_id}")
+async def admin_target_asin_delete(user: CurrentUser, asin_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if not db.target_asin_delete(asin_id):
+        raise HTTPException(status_code=404, detail="不存在")
+    return {"ok": True}
+
+
 @app.post("/api/v1/admin/task-report/parse-preview", response_model=TaskReportParsePreviewResponse)
 async def admin_task_report_parse_preview(user: CurrentUser, body: TaskReportParsePreviewBody):
     if not user.get("is_admin"):
@@ -634,6 +727,31 @@ async def admin_task_center_list(
     pq = params_q.strip() if params_q and params_q.strip() else None
     total, rows = db.list_tasks_filtered(page, per_page, device_id, status_filter, task_type, pq)
     return _paginate_tasks(total, page, per_page, rows)
+
+
+@app.delete("/api/v1/admin/task-center/tasks")
+async def admin_task_delete_all_matching(
+    user: CurrentUser,
+    device_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    task_type: Optional[str] = None,
+    params_q: Optional[str] = Query(
+        None,
+        max_length=256,
+        description="与列表接口一致；无筛选参数时删除库内全部任务",
+    ),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    pq = params_q.strip() if params_q and params_q.strip() else None
+    deleted, names = db.delete_tasks_matching_filters(device_id, status_filter, task_type, pq)
+    for name in names:
+        p = os.path.join(TASK_IMAGE_DIR, name)
+        try:
+            os.remove(p)
+        except FileNotFoundError:
+            pass
+    return {"ok": True, "deleted": deleted}
 
 
 @app.get("/api/v1/admin/task-center/tasks/{task_id}")
@@ -718,6 +836,22 @@ async def client_heartbeat(body: HeartbeatBody):
     db.upsert_device_heartbeat(body.device_id)
     pol = db.get_device_screenshot_upload_policy(body.device_id)
     return {"ok": True, "screenshot_upload_policy": pol}
+
+
+@app.post("/api/v1/client/asin-clicks")
+async def client_asin_click(body: ClientAsinClickBody):
+    """客户端每次完成目标 ASIN 相关点击后调用；仅对已登记的 ASIN 累加「总点击 / 今日点击」。"""
+    db.upsert_device_heartbeat(body.device_id)
+    norm = normalize_target_asin(body.asin)
+    if not norm:
+        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+    out = db.increment_target_asin_click(norm)
+    if not out:
+        raise HTTPException(
+            status_code=404,
+            detail="ASIN 未在后台登记，请先在「目标 ASIN 管理」中添加",
+        )
+    return {"ok": True, **out}
 
 
 @app.get("/api/v1/client/random-keywords")

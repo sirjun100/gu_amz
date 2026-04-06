@@ -43,6 +43,18 @@ export type AddressRow = {
   created_at: string | null
 }
 
+export type TargetAsinRow = {
+  id: number
+  asin: string
+  note: string | null
+  total_clicks: number
+  today_clicks: number
+  /** 服务端用于「今日」的日历日，与 today_clicks 对齐 */
+  stats_date: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
 export type PaginatedRows<T = Record<string, unknown>> = {
   items: T[]
   page: number
@@ -57,7 +69,7 @@ export type TaskRow = {
   device_alias?: string | null
   task_type: string
   status: string
-  /** 任务类型相关参数（点击：keyword、product_titles；注册：phone、address_snapshot 等） */
+  /** 任务类型相关参数（点击：keyword、res_folder_name；注册：phone、address_snapshot 等） */
   params: Record<string, unknown>
   failure_detail: string | null
   retry_count: number

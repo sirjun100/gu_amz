@@ -165,6 +165,32 @@ var 运维接口 = {
     return out;
   },
 
+  /**
+   * 目标 ASIN 点击计数 +1（须先在运维后台「目标 ASIN 管理」中登记该 ASIN）。
+   * 服务端累加 total_clicks、today_clicks；按服务器本地日期换日时今日计数归零。
+   * @param asin Amazon ASIN 字符串（会规范化为大写、去空格）
+   * @return {{ ok: boolean, asin?: string, total_clicks?: number, today_clicks?: number }|null} 失败或无响应时 null；未登记时 HTTP 404，请视业务 log 或扩展解析
+   */
+  上报目标ASIN点击: function (asin) {
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/asin-clicks";
+    var body = {
+      device_id: AMZ_CONFIG.deviceId,
+      asin: asin != null ? String(asin).trim() : "",
+    };
+    var res = http.postJSON(url, body, AMZ_CONFIG.httpTimeoutMs, null);
+    logd("asin-clicks => " + res);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      var j = typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+      return j;
+    } catch (e) {
+      logw("asin-clicks 解析: " + e);
+      return null;
+    }
+  },
+
   上报结案: function (taskId, lines, imagePaths) {
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/tasks/" + taskId + "/report";
     var params = {

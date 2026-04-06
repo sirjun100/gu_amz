@@ -128,7 +128,7 @@ function AMZ_同步BLE与截屏坐标系() {
   }
 }
 
-function 点击图片位置(fileName){
+function 找图并点击(fileName){
   // 1. 申请权限
   let req = startEnv();
   if (!req) {
@@ -136,14 +136,12 @@ function 点击图片位置(fileName){
     return;
   }
   sleep(1000);
-
   // 2. 读取模板
   let templateImg = readResAutoImage(fileName);
   if (templateImg == null) {
     logd("读取模板图片失败");
     return;
   }
-
   // 3. 截屏
   let screenImg = image.captureFullScreen();
   if (screenImg == null) {
@@ -151,21 +149,146 @@ function 点击图片位置(fileName){
     image.recycle(templateImg);
     return;
   }
-
   // 4. 透明找图
   // 参数说明: (大图, 小图, x1, y1, x2, y2, threshold, limit)
   let points = image.findImageByColor(screenImg, templateImg, 0, 0, 0, 0, 0.8, 1);
   logd("找图结果: " + JSON.stringify(points));
-
-  // 5. 处理结果并点击
+  // 5. 处理结果并点击（Point 数组，需用 points[i]）
   if (points && points.length > 0) {
     for (let i = 0; i < points.length; i++) {
       let point = points[i];
-      logd("找到坐标: (" + point.x + ", " + point.y + ")");
       clickPoint(point.x, point.y);
     }
   } else {
     logd("未找到图片");
+  }
+}
+
+/**
+ * 与 findImageByColor 一致：命中时返回 Point 对象（首个），否则 null；不在此点击。
+ */
+function 找图(fileName){
+  let req = startEnv();
+  if (!req) {
+    logd("申请权限失败");
+    return null;
+  }
+  sleep(1000);
+  let templateImg = readResAutoImage(fileName);
+  if (templateImg == null) {
+    logd("读取模板图片失败");
+    return null;
+  }
+  let screenImg = image.captureFullScreen();
+  if (screenImg == null) {
+    logd("截屏失败");
+    image.recycle(templateImg);
+    return null;
+  }
+  let points = image.findImageByColor(screenImg, templateImg, 0, 0, 0, 0, 0.8, 1);
+  logd("找图结果: " + JSON.stringify(points));
+  if (points && points.length > 0) {
+    let point = points[0];
+    image.recycle(templateImg);
+    image.recycle(screenImg);
+    return point;
+  }
+  logd("未找到图片");
+  image.recycle(templateImg);
+  image.recycle(screenImg);
+  return null;
+}
+
+
+function 执行滑动(startX, startY, endX, endY, durationMs) {
+  if (typeof swipeToPoint === "function") {
+    swipeToPoint(startX, startY, endX, endY, durationMs);
+    return true;
+  }
+  if (typeof bleEvent !== "undefined" && bleEvent != null && typeof bleEvent.swipeToPoint === "function") {
+    var br = bleEvent.swipeToPoint(startX, startY, endX, endY, durationMs);
+    return br == null || br === "";
+  }
+  logw("首页浏览: 无 swipeToPoint，跳过本次滑动");
+  return false;
+}
+
+
+/** 手指自下向上滑：列表内容向下滑（看下方） */
+function 向下滑一次() {
+  var full =
+      typeof AMZ_取全屏区域 === "function"
+          ? AMZ_取全屏区域()
+          : { x: 0, y: 0, ex: 750, ey: 1334 };
+  var w = full.ex - full.x;
+  var h = full.ey - full.y;
+  var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
+  var yStart = Math.floor(full.y + h * (0.7 + Math.random() * 0.08));
+  var yEnd = Math.floor(full.y + h * (0.26 + Math.random() * 0.1));
+  var dur = 随机区间(480, 920);
+  执行滑动(cx, yStart, cx, yEnd, dur);
+}
+
+/** 手指自上向下滑：列表内容向上滚（回顶部方向） */
+function 向上滑一次() {
+  var full =
+      typeof AMZ_取全屏区域 === "function"
+          ? AMZ_取全屏区域()
+          : { x: 0, y: 0, ex: 750, ey: 1334 };
+  var w = full.ex - full.x;
+  var h = full.ey - full.y;
+  var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
+  var yStart = Math.floor(full.y + h * (0.28 + Math.random() * 0.1));
+  var yEnd = Math.floor(full.y + h * (0.74 + Math.random() * 0.08));
+  var dur = 随机区间(480, 920);
+  执行滑动(cx, yStart, cx, yEnd, dur);
+}
+
+// 传入过去的时间，返回和当前时间相差的分钟数
+function 获取分钟的值(pastTime) {
+  const past = new Date(pastTime).getTime();
+  const now = Date.now();
+  const diffMs = now - past;
+  // 返回相差分钟（向下取整）
+  return diffMs / 1000 / 60
+}
+
+
+/**
+ * @param requireVisible true 时用 name(...).visible(true).getOneNodeInfo，减少「节点在树里但已滚出视野仍命中」的假阳性
+ */
+function 找节点(accessibilityName) {
+  var to = 5000
+  if (isNaN(to) || to < 200) {
+    to = 2000;
+  }
+  try {
+    var sel = name(accessibilityName);
+    if (sel != null && typeof sel.visible === "function") {
+      sel = sel.visible(true);
+    }
+    return sel.getOneNodeInfo(to);
+  } catch (e) {
+    return null;
+  }
+}
+
+
+function 逐字输入(text) {
+  var s = text != null ? String(text) : "";
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    var dur = 随机区间(80, 280);
+    if (dur < 40) {
+      dur = 40;
+    }
+    try {
+      inputText(ch, dur);
+    } catch (e2) {
+      logw("逐字输入异常: " + e2);
+      throw e2;
+    }
+    sleep(40, 160);
   }
 }
 

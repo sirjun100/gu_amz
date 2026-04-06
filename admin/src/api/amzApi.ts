@@ -10,6 +10,7 @@ import type {
   DeviceRow,
   KeywordRow,
   AddressRow,
+  TargetAsinRow,
   AdminSettings,
   TaskSavedRecordRow,
   ScreenshotUploadPolicy,
@@ -78,10 +79,8 @@ export function deleteKeyword(id: number) {
 export function postBatchClick(body: {
   task_type: string
   keyword: string
-  /** 兼容旧请求体：服务端会并入 product_titles；新任务请只传 product_titles */
-  product_title?: string
-  /** 产品标题列表（至少一项） */
-  product_titles?: string[]
+  /** 与关键词 1:1；客户端 res 下资源文件夹名 */
+  res_folder_name: string
   mode: 'manual' | 'smart'
   device_ids: string[]
   per_device_counts: Record<string, number>
@@ -143,6 +142,24 @@ export function deleteAddress(id: number) {
   return del<{ ok: boolean }>(`/admin/addresses/${id}`)
 }
 
+export function fetchTargetAsinsPage(page: number, perPage = 30, q?: string) {
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  return get<PaginatedRows<TargetAsinRow>>(`/admin/target-asins?${qs}`)
+}
+
+export function createTargetAsin(body: { asin: string; note?: string }) {
+  return post<{ ok: boolean; id: number }>('/admin/target-asins', body)
+}
+
+export function updateTargetAsin(id: number, body: { asin?: string; note?: string | null }) {
+  return put<{ ok: boolean }>(`/admin/target-asins/${id}`, body)
+}
+
+export function deleteTargetAsin(id: number) {
+  return del<{ ok: boolean }>(`/admin/target-asins/${id}`)
+}
+
 export async function importAddressesXlsx(file: File) {
   const token = localStorage.getItem('auth_token')
   const fd = new FormData()
@@ -183,6 +200,22 @@ export const postTaskRetry = (taskId: number) =>
 
 export function deleteTaskCenterTask(taskId: number) {
   return del<{ ok: boolean }>(`/admin/task-center/tasks/${taskId}`)
+}
+
+/** 删除与当前筛选一致的全部任务；无任何筛选时删除库内全部任务 */
+export function deleteTaskCenterTasksMatchingFilters(params: {
+  device_id?: string
+  status?: string
+  task_type?: string
+  params_q?: string
+}) {
+  const q = new URLSearchParams()
+  if (params.device_id) q.set('device_id', params.device_id)
+  if (params.status) q.set('status', params.status)
+  if (params.task_type) q.set('task_type', params.task_type)
+  if (params.params_q && params.params_q.trim()) q.set('params_q', params.params_q.trim())
+  const qs = q.toString()
+  return del<{ ok: boolean; deleted: number }>(`/admin/task-center/tasks${qs ? `?${qs}` : ''}`)
 }
 
 export const postTaskRedo = (taskId: number) =>

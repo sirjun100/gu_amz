@@ -7,18 +7,14 @@ import { cn } from '@/utils/cn'
 const inp =
   'w-full rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm'
 
-const textareaInp =
-  'w-full min-h-[140px] rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm font-mono text-xs'
-
 type Props = { taskType: string; title: string; description?: string }
 
 export function ClickTaskPage({ taskType, title, description }: Props) {
   const { addToast } = useUIStore()
   const [devices, setDevices] = useState<DeviceOption[]>([])
   const [keyword, setKeyword] = useState('')
-  const [productTitle, setProductTitle] = useState('')
-  /** search_click：每行一个标题 */
-  const [productTitlesText, setProductTitlesText] = useState('')
+  /** 与关键词 1:1；客户端 res 下资源目录名 */
+  const [resFolderName, setResFolderName] = useState('')
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [mode, setMode] = useState<'manual' | 'smart'>('manual')
   const [counts, setCounts] = useState<Record<string, string>>({})
@@ -49,20 +45,8 @@ export function ClickTaskPage({ taskType, title, description }: Props) {
       addToast({ message: '请填写关键词', type: 'error' })
       return
     }
-    const multiTitles =
-      taskType === 'search_click'
-        ? productTitlesText
-            .split(/\r?\n/)
-            .map((l) => l.trim())
-            .filter((l) => l.length > 0)
-        : []
-    if (taskType === 'search_click') {
-      if (multiTitles.length === 0) {
-        addToast({ message: '请至少填写一行产品标题', type: 'error' })
-        return
-      }
-    } else if (!productTitle.trim()) {
-      addToast({ message: '请填写产品标题', type: 'error' })
+    if (!resFolderName.trim()) {
+      addToast({ message: '请填写资源文件夹名', type: 'error' })
       return
     }
     if (selectedIds.length === 0) {
@@ -90,9 +74,7 @@ export function ClickTaskPage({ taskType, title, description }: Props) {
       const r = await postBatchClick({
         task_type: taskType,
         keyword: keyword.trim(),
-        ...(taskType === 'search_click'
-          ? { product_titles: multiTitles }
-          : { product_titles: [productTitle.trim()] }),
+        res_folder_name: resFolderName.trim(),
         mode,
         device_ids: selectedIds,
         per_device_counts: mode === 'manual' ? per_device_counts : {},
@@ -118,23 +100,16 @@ export function ClickTaskPage({ taskType, title, description }: Props) {
           <span className="text-slate-600 dark:text-slate-400">关键词</span>
           <input className={cn(inp, 'mt-1')} value={keyword} onChange={(e) => setKeyword(e.target.value)} />
         </label>
-        {taskType === 'search_click' ? (
-          <label className="block text-sm">
-            <span className="text-slate-600 dark:text-slate-400">产品标题（每行一个，无障碍 Link 的 name/label 包含该片段即匹配）</span>
-            <textarea
-              className={cn(textareaInp, 'mt-1')}
-              value={productTitlesText}
-              onChange={(e) => setProductTitlesText(e.target.value)}
-              placeholder={'例如第一行一个 ASIN 对应的长标题\n第二行另一个商品标题'}
-              spellCheck={false}
-            />
-          </label>
-        ) : (
-          <label className="block text-sm">
-            <span className="text-slate-600 dark:text-slate-400">产品标题</span>
-            <input className={cn(inp, 'mt-1')} value={productTitle} onChange={(e) => setProductTitle(e.target.value)} />
-          </label>
-        )}
+        <label className="block text-sm">
+          <span className="text-slate-600 dark:text-slate-400">资源文件夹名（res_folder_name，与关键词 1:1）</span>
+          <input
+            className={cn(inp, 'mt-1 font-mono')}
+            value={resFolderName}
+            onChange={(e) => setResFolderName(e.target.value)}
+            placeholder="例如 MIULEE（客户端 res 下该目录中的模板图）"
+            spellCheck={false}
+          />
+        </label>
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span className="text-sm text-slate-600 dark:text-slate-400">选择设备（多选）</span>
@@ -208,8 +183,7 @@ export function ClickTaskPage({ taskType, title, description }: Props) {
         <label className="flex items-center gap-2 text-sm cursor-pointer">
           <input type="checkbox" checked={saveDataRecord} onChange={(e) => setSaveDataRecord(e.target.checked)} />
           <span>
-            保存数据记录（默认不勾选：仅当任务<strong>成功</strong>结案时写入归档，含关键词
-            {taskType === 'search_click' ? '、多标题' : '、标题'}等参数）
+            保存数据记录（默认不勾选：仅当任务<strong>成功</strong>结案时写入归档，含关键词与 res_folder_name 等参数）
           </span>
         </label>
         <button

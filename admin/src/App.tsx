@@ -10,6 +10,7 @@ import { KeywordsPage } from '@/pages/keywords/KeywordsPage'
 import { ClickTaskPage } from '@/pages/tasks/ClickTaskPage'
 import { RegisterTasksPage } from '@/pages/tasks/RegisterTasksPage'
 import { AddressesPage } from '@/pages/addresses/AddressesPage'
+import { TargetAsinsPage } from '@/pages/targetAsins/TargetAsinsPage'
 import { TaskReportParsePage } from '@/pages/tools/TaskReportParsePage'
 import { SystemSettingsPage } from '@/pages/settings/SystemSettingsPage'
 import { TaskSavedRecordsPage } from '@/pages/tasks/TaskSavedRecordsPage'
@@ -89,26 +90,27 @@ function App() {
               <ClickTaskPage
                 taskType="search_click"
                 title="搜索产品点击任务"
-                description="关键词 + 多个产品标题（每行一条）；客户端在结果列表累计停留约 2～4 分钟，匹配任一标题即进详情浏览约 1～3 分钟后 Back 回列表"
+                description="关键词与资源文件夹名 res_folder_name 一一对应；客户端按该目录下的资源执行（如找图模板）。"
               />
             }
           />
           <Route
             path="tasks/related-click"
             element={
-              <ClickTaskPage taskType="related_click" title="相关产品点击任务" description="字段与分配方式同搜索产品点击，仅任务类型不同" />
+              <ClickTaskPage taskType="related_click" title="相关产品点击任务" description="字段与分配方式同搜索产品点击（keyword + res_folder_name），仅任务类型不同" />
             }
           />
           <Route
             path="tasks/similar-click"
             element={
-              <ClickTaskPage taskType="similar_click" title="同类产品点击任务" description="字段与分配方式同搜索产品点击，仅任务类型不同" />
+              <ClickTaskPage taskType="similar_click" title="同类产品点击任务" description="字段与分配方式同搜索产品点击（keyword + res_folder_name），仅任务类型不同" />
             }
           />
           <Route path="tasks/register" element={<RegisterTasksPage />} />
           <Route path="tasks/saved-records" element={<TaskSavedRecordsPage />} />
           <Route path="settings" element={<SystemSettingsPage />} />
           <Route path="addresses" element={<AddressesPage />} />
+          <Route path="target-asins" element={<TargetAsinsPage />} />
           <Route path="tools/task-report-parse" element={<TaskReportParsePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/tasks" replace />} />
