@@ -231,6 +231,7 @@ ImageWrapper.prototype.captureFullScreenNoAuto = function () {
 /**
  * 重置无权限截图的环境
  * 因为在iOS17+系统需要提前启动隧道，就需要调用这个函数
+ * 这个会关闭之前的通信隧道，开启新的，对于低于17版本的，该函数无效
  * 适配EC iOS USB版本 9.20.0+
  * @returns {boolean} true 代表成功 false代表失败
  */
@@ -1609,6 +1610,17 @@ ImageWrapper.prototype.binaryzation = function (img, type, threshold) {
         return null;
     }
     let xd = imageWrapper.binaryzation(img.uuid, type, threshold);
+    if (xd != null && xd != undefined && xd != "") {
+        return new AutoImage(javaString2string(xd));
+    }
+    return null;
+};
+
+ImageWrapper.prototype.toJpg = function (img) {
+    if (img == null) {
+        return null;
+    }
+    let xd = imageWrapper.toJpg(img.uuid, 100);
     if (xd != null && xd != undefined && xd != "") {
         return new AutoImage(javaString2string(xd));
     }

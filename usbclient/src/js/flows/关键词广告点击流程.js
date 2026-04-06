@@ -5,7 +5,11 @@
 function 关键词广告点击流程(task) {
   var tid = task != null && task.id != null ? task.id : "?";
   try {
+
+
     日志收集器.添加("[关键词广告] 开始 task_id=" + tid);
+
+    返回到HOME界面();
 
     日志收集器.添加("[关键词广告] 步骤1/5 打开 AMG 并选择环境");
     if (!打开AMG并选择环境()) {
@@ -13,9 +17,7 @@ function 关键词广告点击流程(task) {
     }
 
     日志收集器.添加("[关键词广告] 步骤1 完成；返回桌面");
-    if (!返回到HOME界面()) {
-      throw new Error("步骤1 后失败：无法返回主屏幕");
-    }
+    返回到HOME界面();
 
     日志收集器.添加("[关键词广告] 步骤2/5 打开 Chrome");
     if (!打开Chrome浏览器()) {
@@ -76,12 +78,17 @@ function 搜索并点击目标任务广告(task) {
   ioHIDEvent("0x07", "0x28", 0.2);
   sleep(随机区间(5000, 8000));
 
-  var folderPath = "res/" + folderName + "/";
-  var files = file.listDir(folderPath);
-  if (!files || files.length === 0) {
-    throw new Error("搜索并点击目标任务广告: 资源目录无文件 " + folderPath);
+
+  var listContent = readResString(folderName + "/filelist.txt");
+  if (!listContent) {
+    throw new Error("搜索并点击目标任务广告: 未找到资源清单文件 res/" + folderName + "/filelist.txt");
   }
-  logd("[关键词广告] 步骤5 res 内共 " + files.length + " 个文件: " + folderPath);
+  // 2. 按行分割，获取文件名数组
+  var fileNames = listContent.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  if (fileNames.length === 0) {
+    throw new Error("搜索并点击目标任务广告: 资源清单文件为空");
+  }
+  日志收集器.添加("[关键词广告] 步骤5 res 内共 " + fileNames.length + " 个文件: res/" + folderName + "/");
 
 
 
@@ -99,16 +106,21 @@ function 搜索并点击目标任务广告(task) {
       break;
     }
 
-    for (var i = 0; i < files.length; i++) {
-      var fileName = files[i];
+    for (var i = 0; i < fileNames.length; i++) {
+      var fileName = fileNames[i];
       var 广告图片 = 找图(folderName + "/" + fileName);
       if (广告图片) {
-        clickPoint(广告图片.x, 广告图片.y);
-        sleep(随机区间(5000, 8000));
-        日志收集器.添加("[关键词广告] 步骤5 已点击图片模板 " + fileName);
+        for(var z=0;z<3;z++){
+          clickPoint(广告图片.x, 广告图片.y);
+          sleep(随机区间(4000, 8000));
+          日志收集器.添加("[关键词广告] 步骤5 已点击图片模板->" + fileName);
+          let 商品详情页检测标志 = nameMatch("Visit the Store.*").getOneNodeInfo(5000);
+          if(商品详情页检测标志){
+            break;
+          }
+        }
 
-        var 亚马逊产品详情页面的图标 = 找图("chrome/亚马逊产品详情页面的图标.png");
-        if (亚马逊产品详情页面的图标) {
+        if (true) {
           点击广告次数 = 点击广告次数 + 1;
           var asinReport = fileName.replace(".png", "");
           if (asinReport.length > 0) {
@@ -127,26 +139,26 @@ function 搜索并点击目标任务广告(task) {
           var 进入详情开始时间 = Date.now();
           for (var j = 0; j < 5; j++) {
             向下滑一次();
-            sleep(随机区间(3000, 5000));
+            sleep(随机区间(4000, 8000));
           }
           while (true) {
             var 选择的值 = 随机选择([1, 2]);
             if (选择的值 == 1) {
               向下滑一次();
-              sleep(随机区间(3000, 5000));
+              sleep(随机区间(4000, 8000));
             } else {
               向上滑一次();
-              sleep(随机区间(3000, 5000));
+              sleep(随机区间(4000, 8000));
             }
 
             var 详情执行分钟 = 获取分钟的值(进入详情开始时间);
             if (详情执行分钟 > 3) {
               向上滑一次();
-              sleep(随机区间(3000, 5000));
+              sleep(随机区间(4000, 8000));
               var 回退按钮 = name("back").getOneNodeInfo(5000);
               if (回退按钮) {
                 回退按钮.clickCenter();
-                sleep(随机区间(3000, 5000));
+                sleep(随机区间(4000, 8000));
               } else {
                 日志收集器.添加("[关键词广告] 步骤5 未找到 back 节点，仍尝试回列表");
               }
@@ -155,10 +167,11 @@ function 搜索并点击目标任务广告(task) {
           }
         }
       } else {
-        向下滑一次();
-        sleep(随机区间(3000, 6000));
+        日志收集器.添加("[关键词广告] 没找到图片中的坐标->"+fileName);
       }
     }
+    向下滑一次();
+    sleep(随机区间(3000, 6000));
   }
 
   日志收集器.添加("[关键词广告] 步骤5 搜索并点击目标任务广告 完成");
@@ -203,21 +216,23 @@ function 搜索随机关键词浏览并加购() {
   var start_time = Date.now();
   var idx = 0;
   for (idx = 0; idx < 5; idx++) {
+    日志收集器.添加("[关键词广告] 随机关键词浏览(第"+idx+"次)向下滑一次");
     向下滑一次();
-    sleep(随机区间(3000, 5000));
+    sleep(随机区间(4000, 8000));
   }
 
   while (true) {
     var 选择2 = 随机选择([1, 2]);
     if (选择2 == 1) {
       向下滑一次();
-      sleep(随机区间(3000, 5000));
+      sleep(随机区间(4000, 8000));
     } else {
       向上滑一次();
-      sleep(随机区间(3000, 5000));
+      sleep(随机区间(4000, 8000));
     }
 
     var 浏览分钟 = 获取分钟的值(start_time);
+    日志收集器.添加("[关键词广告] 已在随机关键词页面停留"+浏览分钟+"分钟");
     if (浏览分钟 > 2) {
       break;
     }
@@ -228,16 +243,22 @@ function 搜索随机关键词浏览并加购() {
     if (搜索节点) {
       搜索节点.clickCenter();
       var bi = 0;
-      for (bi = 0; bi < s.length; bi++) {
+      sleep(随机区间(1000,2000));
+      for (bi = 0; bi < s.length*1.5; bi++) {
         var result = ioHIDEvent("0x07", "0x2A", 0.2);
         if (result) {
           日志收集器.添加("[关键词广告] 步骤4 退格 " + (bi + 1) + "/" + s.length);
+        }else{
+          logd("回退失败");
         }
+        sleep(300);
       }
       break;
+    }else{
+      logd("没有找到搜索节点啊，请看看");
     }
     向上滑一次();
-    sleep(随机区间(3000, 5000));
+    sleep(随机区间(4000, 8000));
   }
 
   日志收集器.添加("[关键词广告] 步骤4 完成");
@@ -262,51 +283,55 @@ function 打开亚马逊首页并随机浏览() {
   var resultOpen = ioHIDEvent("0x07", "0x28", 0.2);
   logd("[关键词广告] 步骤3 ioHIDEvent 回车: " + resultOpen);
   日志收集器.添加("[关键词广告] 步骤3 已提交网址，等待加载");
-  sleep(随机区间(5000, 10000));
+  sleep(随机区间(4000, 6000));
 
-  var 亚马逊首页检测图标 = 找图("chrome/亚马逊首页检测图标.png");
-  if (!亚马逊首页检测图标) {
-    日志收集器.添加("[关键词广告] 步骤3 未检测到亚马逊首页图标");
+  var 检测亚马逊搜索按钮 = name("search").getOneNodeInfo(5000)
+  if (!检测亚马逊搜索按钮) {
+    日志收集器.添加("[关键词广告] 步骤3 未检测到检测亚马逊搜索按钮");
     return false;
   }
-
-  日志收集器.添加("[关键词广告] 步骤3 已打开亚马逊首页");
-  var 亚马逊检测账户未登录图标 = 找图("chrome/亚马逊检测账户未登录图标.png");
-  if (亚马逊检测账户未登录图标) {
+  var 亚马逊检测账户未登录图标 =name('Sign in ›').getOneNodeInfo(5000);
+  if(亚马逊检测账户未登录图标){
     日志收集器.添加("[关键词广告] 步骤3 检测到未登录，中止");
     return false;
   }
 
+  // 检测亚马逊搜索按钮.clickCenter();
+  // sleep(随机区间(1000, 3000));
+
   var start_time = Date.now();
   var hi = 0;
   for (hi = 0; hi < 5; hi++) {
+    日志收集器.添加("[关键词广告] 首页浏览(第"+hi+"次)向下滑一次");
     向下滑一次();
-    sleep(随机区间(3000, 5000));
+    sleep(随机区间(4000, 6000));
   }
 
   while (true) {
     var 选择3 = 随机选择([1, 2]);
     if (选择3 == 1) {
       向下滑一次();
-      sleep(随机区间(3000, 5000));
+      sleep(随机区间(4000, 6000));
     } else {
       向上滑一次();
-      sleep(随机区间(3000, 5000));
+      sleep(随机区间(4000, 6000));
     }
 
     var 首页分钟 = 获取分钟的值(start_time);
+    日志收集器.添加("[关键词广告] 已在首页停留"+首页分钟+"分钟");
     if (首页分钟 > 2) {
       break;
     }
   }
 
   while (true) {
+    日志收集器.添加("[关键词广告] 首页正在滑行到最最顶端！！！");
     var 搜索节点首页 = 找节点("search");
     if (搜索节点首页) {
       break;
     }
     向上滑一次();
-    sleep(随机区间(3000, 5000));
+    sleep(随机区间(4000, 8000));
   }
 
   日志收集器.添加("[关键词广告] 步骤3 完成");
@@ -366,6 +391,13 @@ function 打开Chrome浏览器() {
     日志收集器.添加("[关键词广告] 步骤2 appLaunchEx 失败（第 " + (i + 1) + " 次）");
   }
 
+  var Chrome新特性 = 找图("chrome/Chrome新特性.png");
+  if(Chrome新特性){
+    clickPoint(Chrome新特性.x, Chrome新特性.y);
+    sleep(2000);
+  }
+
+
   var chrome识别界面图标 = 找图("chrome/Chrome识别界面图标.png");
 
   if (!chrome识别界面图标) {
@@ -391,7 +423,7 @@ function 返回到HOME界面() {
   var FLAG = false;
   var i = 0;
   for (i = 0; i < 3; i++) {
-    var success = agentEvent.pressKey("home");
+    var success = home();
     if (success) {
       FLAG = true;
       logd("[关键词广告] Home 键成功");
@@ -399,5 +431,6 @@ function 返回到HOME界面() {
     }
     loge("[关键词广告] Home 键失败 " + (i + 1));
   }
+  sleep(5000);
   return FLAG;
 }

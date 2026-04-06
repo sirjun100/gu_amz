@@ -67,6 +67,7 @@ Console.prototype.logeLine = function (line, msg) {
     }
     ecImporter.logeLine(line, formatlog(msg), s);
 }
+
 /**
  * 脚本是否处于暂停中
  * 适配 EC iOS 6.46.0+
@@ -343,6 +344,7 @@ function execScript(type, content) {
     //return ecImporter.execScript(type, content);
 
 }
+
 /**
  * 载入jar文件
  * @param path 路径，加载顺序分别是插件目录(例如 ab.jar)或者是文件路径(例如 /sdcard/ab.jar)加载
@@ -475,6 +477,27 @@ function readResBitmap(fileName) {
  */
 function startEnv() {
     return ecImporter.startEnv();
+}
+
+/**
+ * 启动隧道
+ * 适配EC iOS USB版本 9.22.0+
+ * 这个会关闭之前的隧道，对于iOS 17+系统有效
+ * @returns {string} 空代表成功 其他代表失败
+ */
+function startTunnel() {
+    return ecImporter.startTunnel();
+}
+
+
+/**
+ * 关闭隧道
+ * 适配EC iOS USB版本 9.22.0+
+ * 这个会关闭之前的隧道，对于iOS 17+系统有效
+ * @returns {string} 空代表成功 其他代表失败
+ */
+function closeTunnel() {
+    return ecImporter.closeTunnel();
 }
 
 /**
@@ -621,7 +644,6 @@ function ipaVersion() {
 }
 
 
-
 /**
  * 读取所有UI配置
  * @param tmplName UI模板文件名称
@@ -703,7 +725,7 @@ function fsyncFilePushPull(action, srcPath, destPath) {
     if (deviceWrapper == null) {
         return null;
     }
-    let x = deviceWrapper.fsyncPullPush(action,srcPath, destPath);
+    let x = deviceWrapper.fsyncPullPush(action, srcPath, destPath);
     try {
         return JSON.parse(x)
     } catch (exp) {

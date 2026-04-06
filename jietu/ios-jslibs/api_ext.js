@@ -208,6 +208,13 @@ AutoImage.prototype.binaryzationEx = function (map) {
     return ____image__.binaryzationEx(this, map);
 }
 
+AutoImage.prototype.toJpg = function () {
+    return ____image__.toJpg(this);
+}
+
+
+
+
 /**
  * 旋转图片
  * @param degree 度数，-90代表逆时针旋转90度，home键在右，90度代表顺时针旋转90度，home键在左

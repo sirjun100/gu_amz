@@ -385,3 +385,47 @@ BleEventWrapper.prototype.setStep = function (step) {
     }
     return bleEventWrapper.setStep(step);
 };
+
+
+/**
+ * 点亮LED
+ * 适配EC iOS USB版本 9.21.0+
+ * @param num 循环点亮次数
+ * @param lightToOff 从亮到灭过程的时间 单位毫秒
+ * @param offToLight 从灭再到亮的过程时间 单位毫秒
+ * @returns {string} null或者空字符串，代表成功，其他代表错误信息
+ */
+BleEventWrapper.prototype.light = function (num, lightToOff, offToLight) {
+    if (bleEventWrapper == null) {
+        return "无实例";
+    }
+    return bleEventWrapper.light(num,lightToOff, offToLight);
+};
+
+
+/**
+ * 显示蓝牙名称
+ * 适配EC iOS USB版本 9.21.0+
+ * 有助于能够搜索到
+ * @returns {string} null或者空字符串，代表成功，其他代表错误信息
+ */
+BleEventWrapper.prototype.showBleName = function () {
+    if (bleEventWrapper == null) {
+        return "无实例";
+    }
+    return bleEventWrapper.showBleName();
+};
+
+
+/**
+ * 隐藏蓝牙名称
+ * 防检测
+ * 适配EC iOS USB版本 9.21.0+
+ * @returns {string} null或者空字符串，代表成功，其他代表错误信息
+ */
+BleEventWrapper.prototype.hideBleName = function () {
+    if (bleEventWrapper == null) {
+        return "无实例";
+    }
+    return bleEventWrapper.hideBleName();
+};
