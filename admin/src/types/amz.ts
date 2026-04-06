@@ -55,6 +55,15 @@ export type TargetAsinRow = {
   updated_at: string | null
 }
 
+/** 客户端 ASIN 点击上报落库的一条明细 */
+export type AsinClickRecordRow = {
+  id: number
+  asin: string
+  keyword: string
+  device_id: string | null
+  created_at: string | null
+}
+
 export type PaginatedRows<T = Record<string, unknown>> = {
   items: T[]
   page: number

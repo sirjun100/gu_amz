@@ -219,6 +219,7 @@ class Database:
         self._migrate_app_settings_and_saved_records()
         self._migrate_devices_screenshot_upload_policy()
         self._migrate_target_asins()
+        self._migrate_asin_click_records()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
 
@@ -237,6 +238,23 @@ class Database:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_target_asins_asin (asin),
                     INDEX idx_target_asins_stats_date (stats_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+
+    def _migrate_asin_click_records(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS asin_click_records (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    asin VARCHAR(16) NOT NULL,
+                    keyword VARCHAR(512) NOT NULL,
+                    device_id VARCHAR(128) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_acr_asin (asin),
+                    INDEX idx_acr_created (created_at),
+                    INDEX idx_acr_keyword (keyword(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
@@ -857,16 +875,44 @@ class Database:
             cur.execute("DELETE FROM target_asins WHERE id = %s", (tid,))
             return cur.rowcount > 0
 
-    def increment_target_asin_click(self, asin_norm: str) -> dict | None:
-        """按已规范化的 ASIN 累加 total / today（按服务端当日日期换日清零 today）。"""
+    def increment_target_asin_click(
+        self, asin_norm: str, keyword: str, device_id: str | None
+    ) -> dict | None:
+        """累加计数并写入 asin_click_records；若无 target_asins 行则自动插入（备注：客户端上报自动创建）。"""
         if not asin_norm:
             return None
+        kw = (keyword or "").strip()
+        if not kw:
+            return None
+        kw = kw[:512]
+        did = (device_id or "").strip() or None
+        if did and len(did) > 128:
+            did = did[:128]
+        auto_note = "客户端上报自动创建"
         with self._cursor() as (conn, cur):
             cur.execute(
                 "SELECT id, total_clicks, today_clicks, stats_date FROM target_asins WHERE asin = %s FOR UPDATE",
                 (asin_norm,),
             )
             row = cur.fetchone()
+            auto_created = False
+            if not row:
+                try:
+                    cur.execute(
+                        """
+                        INSERT INTO target_asins (asin, note, total_clicks, today_clicks, stats_date)
+                        VALUES (%s, %s, 0, 0, NULL)
+                        """,
+                        (asin_norm, auto_note),
+                    )
+                    auto_created = True
+                except pymysql.err.IntegrityError:
+                    pass
+                cur.execute(
+                    "SELECT id, total_clicks, today_clicks, stats_date FROM target_asins WHERE asin = %s FOR UPDATE",
+                    (asin_norm,),
+                )
+                row = cur.fetchone()
             if not row:
                 return None
             today = date.today()
@@ -885,11 +931,50 @@ class Database:
                 """,
                 (tc, tdy, today, row["id"]),
             )
+            cur.execute(
+                """
+                INSERT INTO asin_click_records (asin, keyword, device_id)
+                VALUES (%s, %s, %s)
+                """,
+                (asin_norm, kw, did),
+            )
+            rid = int(cur.lastrowid)
             return {
                 "asin": asin_norm,
                 "total_clicks": tc,
                 "today_clicks": tdy,
+                "record_id": rid,
+                "keyword": kw,
+                "auto_registered": auto_created,
             }
+
+    def list_asin_click_records_paginated(
+        self, page: int, per_page: int, q: str | None, asin_filter: str | None
+    ):
+        offset = (page - 1) * per_page
+        where = ["1=1"]
+        params: list = []
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            where.append("(keyword LIKE %s OR asin LIKE %s OR COALESCE(device_id,'') LIKE %s)")
+            params.extend([like, like, like])
+        if asin_filter and str(asin_filter).strip():
+            af = normalize_target_asin(str(asin_filter).strip()) or str(asin_filter).strip().upper()
+            where.append("asin = %s")
+            params.append(af[:16])
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) AS c FROM asin_click_records WHERE {wsql}", params)
+            total = cur.fetchone()["c"]
+            cur.execute(
+                f"""
+                SELECT * FROM asin_click_records WHERE {wsql}
+                ORDER BY id DESC LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
 
     def addresses_import_rows(self, rows: list[dict]) -> int:
         n = 0

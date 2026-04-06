@@ -83,7 +83,7 @@ function 搜索并点击目标任务广告(task) {
   }
   logd("[关键词广告] 步骤5 res 内共 " + files.length + " 个文件: " + folderPath);
 
-  var asinReport = String(p.target_asin || p.asin || "").trim();
+
 
   var 任务详情开始时间 = Date.now();
   var 点击广告次数 = 0;
@@ -110,8 +110,9 @@ function 搜索并点击目标任务广告(task) {
         var 亚马逊产品详情页面的图标 = 找图("chrome/亚马逊产品详情页面的图标.png");
         if (亚马逊产品详情页面的图标) {
           点击广告次数 = 点击广告次数 + 1;
+          var asinReport = fileName.replace(".png", "");
           if (asinReport.length > 0) {
-            var rep = 运维接口.上报目标ASIN点击(asinReport);
+            var rep = 运维接口.上报目标ASIN点击(asinReport, kw);
             if (rep != null && rep.ok === true) {
               日志收集器.添加(
                 "[关键词广告] ASIN 上报成功 " + asinReport + " total=" + rep.total_clicks + " today=" + rep.today_clicks

@@ -16,6 +16,7 @@ import {
   UserPlus,
   MapPin,
   ScanBarcode,
+  ListTree,
   FileJson2,
   Settings,
   Archive,
@@ -34,6 +35,7 @@ const navItems = [
   { icon: Archive, label: '任务数据归档', path: '/tasks/saved-records' },
   { icon: MapPin, label: '地址管理', path: '/addresses' },
   { icon: ScanBarcode, label: '目标 ASIN', path: '/target-asins' },
+  { icon: ListTree, label: 'ASIN 点击记录', path: '/asin-click-records' },
   { icon: Settings, label: '系统设置', path: '/settings' },
   { icon: FileJson2, label: '上报日志解析', path: '/tools/task-report-parse' },
 ]

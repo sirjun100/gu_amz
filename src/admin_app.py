@@ -184,6 +184,7 @@ class HeartbeatBody(BaseModel):
 class ClientAsinClickBody(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=128)
     asin: str = Field(..., min_length=1, max_length=32)
+    keyword: str = Field(..., min_length=1, max_length=512)
 
 
 class TaskReportParsePreviewBody(BaseModel):
@@ -689,6 +690,20 @@ async def admin_target_asin_delete(user: CurrentUser, asin_id: int):
     return {"ok": True}
 
 
+@app.get("/api/v1/admin/asin-click-records", response_model=PaginatedRows)
+async def admin_asin_click_records_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(40, ge=1, le=100),
+    q: Optional[str] = None,
+    asin: Optional[str] = Query(None, description="按 ASIN 精确筛选（与目标 ASIN 表一致的大写规范形式）"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    total, rows = db.list_asin_click_records_paginated(page, per_page, q, asin)
+    return _paginate_rows(total, page, per_page, rows)
+
+
 @app.post("/api/v1/admin/task-report/parse-preview", response_model=TaskReportParsePreviewResponse)
 async def admin_task_report_parse_preview(user: CurrentUser, body: TaskReportParsePreviewBody):
     if not user.get("is_admin"):
@@ -840,17 +855,17 @@ async def client_heartbeat(body: HeartbeatBody):
 
 @app.post("/api/v1/client/asin-clicks")
 async def client_asin_click(body: ClientAsinClickBody):
-    """客户端每次完成目标 ASIN 相关点击后调用；仅对已登记的 ASIN 累加「总点击 / 今日点击」。"""
+    """客户端每次完成目标 ASIN 相关点击后调用：若无后台登记则自动创建目标 ASIN，再累加计数并写入明细。"""
     db.upsert_device_heartbeat(body.device_id)
     norm = normalize_target_asin(body.asin)
     if not norm:
         raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
-    out = db.increment_target_asin_click(norm)
+    kw = (body.keyword or "").strip()
+    if not kw:
+        raise HTTPException(status_code=400, detail="keyword 不能为空")
+    out = db.increment_target_asin_click(norm, kw, body.device_id)
     if not out:
-        raise HTTPException(
-            status_code=404,
-            detail="ASIN 未在后台登记，请先在「目标 ASIN 管理」中添加",
-        )
+        raise HTTPException(status_code=500, detail="记录点击失败")
     return {"ok": True, **out}
 
 

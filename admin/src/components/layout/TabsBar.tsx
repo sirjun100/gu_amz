@@ -30,6 +30,7 @@ const routeTitles: Record<string, string> = {
   '/tasks/saved-records': '任务数据归档',
   '/addresses': '地址管理',
   '/target-asins': '目标 ASIN',
+  '/asin-click-records': 'ASIN 点击记录',
   '/settings': '系统设置',
   '/tools/task-report-parse': '上报日志解析',
 }

@@ -11,6 +11,7 @@ import { ClickTaskPage } from '@/pages/tasks/ClickTaskPage'
 import { RegisterTasksPage } from '@/pages/tasks/RegisterTasksPage'
 import { AddressesPage } from '@/pages/addresses/AddressesPage'
 import { TargetAsinsPage } from '@/pages/targetAsins/TargetAsinsPage'
+import { AsinClickRecordsPage } from '@/pages/targetAsins/AsinClickRecordsPage'
 import { TaskReportParsePage } from '@/pages/tools/TaskReportParsePage'
 import { SystemSettingsPage } from '@/pages/settings/SystemSettingsPage'
 import { TaskSavedRecordsPage } from '@/pages/tasks/TaskSavedRecordsPage'
@@ -111,6 +112,7 @@ function App() {
           <Route path="settings" element={<SystemSettingsPage />} />
           <Route path="addresses" element={<AddressesPage />} />
           <Route path="target-asins" element={<TargetAsinsPage />} />
+          <Route path="asin-click-records" element={<AsinClickRecordsPage />} />
           <Route path="tools/task-report-parse" element={<TaskReportParsePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/tasks" replace />} />

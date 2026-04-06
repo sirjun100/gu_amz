@@ -11,6 +11,7 @@ import type {
   KeywordRow,
   AddressRow,
   TargetAsinRow,
+  AsinClickRecordRow,
   AdminSettings,
   TaskSavedRecordRow,
   ScreenshotUploadPolicy,
@@ -158,6 +159,13 @@ export function updateTargetAsin(id: number, body: { asin?: string; note?: strin
 
 export function deleteTargetAsin(id: number) {
   return del<{ ok: boolean }>(`/admin/target-asins/${id}`)
+}
+
+export function fetchAsinClickRecordsPage(page: number, perPage = 40, q?: string, asin?: string) {
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  if (asin) qs.set('asin', asin)
+  return get<PaginatedRows<AsinClickRecordRow>>(`/admin/asin-click-records?${qs}`)
 }
 
 export async function importAddressesXlsx(file: File) {
