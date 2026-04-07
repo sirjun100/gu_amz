@@ -354,7 +354,6 @@ function 打开AMG并选择环境() {
         sleep(2000);
         下一条按钮 = name("下一条").getOneNodeInfo(5000);
       }
-
       if (下一条按钮) {
         下一条按钮 = name("下一条").getOneNodeInfo(5000);
         if (下一条按钮) {
