@@ -45,26 +45,26 @@ function 亚马逊账户注册(task) {
   try {
     日志收集器.添加("[注册亚马逊] 开始 task_id=" + tid);
 
-    日志收集器.添加("[注册亚马逊] 任务开始先回到HOME界面");
-    if (!返回到HOME界面()){
-      throw new Error("步骤0 后失败：无法返回主屏幕");
-    }
+    // 日志收集器.添加("[注册亚马逊] 任务开始先回到HOME界面");
+    // if (!返回到HOME界面()){
+    //   throw new Error("步骤0 后失败：无法返回主屏幕");
+    // }
+    //
+    // 日志收集器.添加("[注册亚马逊] 步骤1/5 打开 AMG 并选择环境");
+    // if (!打开AMG并选择环境(task)) {
+    //   throw new Error("步骤1 失败：打开 AMG 并选择环境");
+    // }
 
-    日志收集器.添加("[注册亚马逊] 步骤1/5 打开 AMG 并选择环境");
-    if (!打开AMG并选择环境(task)) {
-      throw new Error("步骤1 失败：打开 AMG 并选择环境");
-    }
-
-    日志收集器.添加("[注册亚马逊] 步骤1 完成；返回桌面");
-    if (!返回到HOME界面()) {
-      throw new Error("步骤1 后失败：无法返回主屏幕");
-    }
-    日志收集器.添加("[注册亚马逊] 步骤2/5 打开 亚马逊APP");
-    if (!打开亚马逊APP()) {
-      throw new Error("步骤2 失败：打开 亚马逊APP");
-    }
-    日志收集器.添加("[注册亚马逊] 步骤3/5 执行注册流程");
-    开始注册(task);
+    // 日志收集器.添加("[注册亚马逊] 步骤1 完成；返回桌面");
+    // if (!返回到HOME界面()) {
+    //   throw new Error("步骤1 后失败：无法返回主屏幕");
+    // }
+    // 日志收集器.添加("[注册亚马逊] 步骤2/5 打开 亚马逊APP");
+    // if (!打开亚马逊APP()) {
+    //   throw new Error("步骤2 失败：打开 亚马逊APP");
+    // }
+    // 日志收集器.添加("[注册亚马逊] 步骤3/5 执行注册流程");
+    // 开始注册(task);
 
     日志收集器.添加("[注册亚马逊] 步骤4/5 设置二步验证");
     设置二步验证(task);
@@ -249,35 +249,35 @@ function 设置二步验证(task) {
     sleep(随机区间(10000, 15000));
   }
 
-  // 重新验证手机：轮询接码链接（约 5s）最长约 2 分钟
-  日志收集器.添加("进入到输入验证码环节");
-  var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
-  if (!验证码 || String(验证码).length !== 6) {
-    日志收集器.添加("[注册亚马逊-设置二步验证] 手机短信超时或无效");
-    throw new Error("二步验证手机短信验证码超时或无效");
-  }
-  var 验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
-  if (!验证码输入框) {
-    throw new Error("没找到 [验证码输入框]");
-  }
-  验证码输入框.clickRandom();
-  sleep(随机区间(1000, 3000));
-  逐字输入(验证码);
-  sleep(随机区间(1000, 3000));
+  // // 重新验证手机：轮询接码链接（约 5s）最长约 2 分钟
+  // 日志收集器.添加("进入到输入验证码环节");
+  // var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
+  // if (!验证码 || String(验证码).length !== 6) {
+  //   日志收集器.添加("[注册亚马逊-设置二步验证] 手机短信超时或无效");
+  //   throw new Error("二步验证手机短信验证码超时或无效");
+  // }
+  // var 验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
+  // if (!验证码输入框) {
+  //   throw new Error("没找到 [验证码输入框]");
+  // }
+  // 验证码输入框.clickRandom();
+  // sleep(随机区间(1000, 3000));
+  // 逐字输入(验证码);
+  // sleep(随机区间(1000, 3000));
 
-  var 提交验证码 = name("Submit code").getOneNodeInfo(5000);
-  if (!提交验证码) {
-    throw new Error("没找到 [提交验证码]");
-  }
-  提交验证码.clickRandom();
-  sleep(随机区间(10000, 15000));
+  // var 提交验证码 = name("Submit code").getOneNodeInfo(5000);
+  // if (!提交验证码) {
+  //   throw new Error("没找到 [提交验证码]");
+  // }
+  // 提交验证码.clickRandom();
+  // sleep(随机区间(10000, 15000));
 
-  日志收集器.添加("可能跳继续按钮，检测一下，检测到就点击");
-  var 继续按钮 = xpath('//node[@type=\'Application\']/node[@type=\'Window\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Button\' and @index=5 and @label=\'Continue\']').getOneNodeInfo(5000);
-  if(继续按钮){
-    继续按钮.clickRandom();
-    sleep(随机区间(10000, 15000));
-  }
+  // 日志收集器.添加("可能跳继续按钮，检测一下，检测到就点击");
+  // var 继续按钮 = xpath('//node[@type=\'Application\']/node[@type=\'Window\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Button\' and @index=5 and @label=\'Continue\']').getOneNodeInfo(5000);
+  // if(继续按钮){
+  //   继续按钮.clickRandom();
+  //   sleep(随机区间(10000, 15000));
+  // }
 
   日志收集器.添加("点击【Use an authenticator app】按钮");
   var 使用二次验证单选 = name("Use an authenticator app").getOneNodeInfo(5000);
@@ -295,13 +295,22 @@ function 设置二步验证(task) {
     日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到[Verify OTP and continue]");
     throw new Error("Verify OTP and continue");
   }
-  日志收集器.添加("验证OTP并且继续按钮已找到，开始截图");
-  //截图并上传
-  totp截图路径 = AMZ_截屏保存到临时文件();
-  var totp上传结果 = 运维接口.上传TOTP二维码截图(_phone, totp截图路径);
-  file.deleteAllFile(totp截图路径);
-  日志收集器.添加("识别TOTP图片");
-  var OTP验证码 = String(totp上传结果.totp_code);
+
+  var OTP验证码 = undefined;
+  while(true){
+    日志收集器.添加("验证OTP并且继续按钮已找到，开始截图");
+    //截图并上传
+    totp截图路径 = AMZ_截屏保存到临时文件();
+    var totp上传结果 = 运维接口.上传TOTP二维码截图(_phone, totp截图路径);
+    file.deleteAllFile(totp截图路径);
+    日志收集器.添加("识别TOTP图片");
+    if(totp上传结果.totp_code){
+      OTP验证码 = String(totp上传结果.totp_code);
+      break;
+    }
+    sleep(1000);
+  }
+
   //OTP验证码 = 运维接口.获取任务TOTP验证码(_phone);
   var OTP验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=4]").getOneNodeInfo(6000);
   if (!OTP验证码输入框) {
@@ -466,20 +475,12 @@ function 开始注册(task) {
   var 确认提交按钮 = name("Confirm").getOneNodeInfo(5000);
   while(确认提交按钮){
     日志收集器.添加("[注册亚马逊-人工验证码] 截屏上传 task_id=" + _taskNumId);
-    var 验证码截图路径 =
-        typeof AMZ_截屏保存到临时文件 === "function" ? AMZ_截屏保存到临时文件() : "";
+    var 验证码截图路径 = typeof AMZ_截屏保存到临时文件 === "function" ? AMZ_截屏保存到临时文件() : "";
     if (!验证码截图路径 || String(验证码截图路径).length === 0) {
       throw new Error("人工验证码：无法截屏");
     }
-    var 人工码上传 =
-        typeof 运维接口 !== "undefined" && 运维接口 != null && typeof 运维接口.上传人工验证码截图 === "function"
-            ? 运维接口.上传人工验证码截图(_taskNumId, 验证码截图路径)
-            : null;
-    if (typeof file !== "undefined" && file != null && typeof file.deleteAllFile === "function") {
-      try {
-        file.deleteAllFile(验证码截图路径);
-      } catch (eCapDel) {}
-    }
+    var 人工码上传 = 运维接口.上传人工验证码截图(_taskNumId, 验证码截图路径);
+    file.deleteAllFile(验证码截图路径);
     if (
         人工码上传 == null ||
         人工码上传.ok !== true ||
@@ -493,10 +494,7 @@ function 开始注册(task) {
     var 人工码截止 = Date.now() + 60000;
     var 人工点击列表 = null;
     while (Date.now() < 人工码截止) {
-      var 人工轮询 =
-          typeof 运维接口 !== "undefined" && 运维接口 != null && typeof 运维接口.获取人工验证码点击结果 === "function"
-              ? 运维接口.获取人工验证码点击结果(_taskNumId, 人工码会话Id)
-              : null;
+      var 人工轮询 = 运维接口.获取人工验证码点击结果(_taskNumId, 人工码会话Id)
       if (
           人工轮询 != null &&
           String(人工轮询.status || "") === "done" &&
@@ -525,13 +523,13 @@ function 开始注册(task) {
     //循环点击之后,点击confirm按钮
     日志收集器.添加("点击确认验证码");
     确认提交按钮.clickRandom();
-    sleep(2000);
+    sleep(3000);
     //再次获取一下这个按钮，只有这个按钮消失了，验证码才算过了。
     确认提交按钮 = name("Confirm").getOneNodeInfo(5000);
-    if(确认提交按钮){
-      break;
+    if(!确认提交按钮){
+      日志收集器.添加("完整验证");
     }else{
-      日志收集器.添加("==很遗憾，还是停留在验证码界面，继续过验证码");
+      日志收集器.添加("验证失败----继续");
     }
   }
 
