@@ -6,3 +6,6 @@ PyJWT
 pymysql
 werkzeug
 openpyxl
+pyotp
+Pillow
+pyzbar

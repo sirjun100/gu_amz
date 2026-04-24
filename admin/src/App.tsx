@@ -9,10 +9,14 @@ import { DevicesPage } from '@/pages/devices/DevicesPage'
 import { KeywordsPage } from '@/pages/keywords/KeywordsPage'
 import { ClickTaskPage } from '@/pages/tasks/ClickTaskPage'
 import { RegisterTasksPage } from '@/pages/tasks/RegisterTasksPage'
+import { AmazonAccountsPage } from '@/pages/autoRegister/AmazonAccountsPage'
+import { RegisterPhonePoolPage } from '@/pages/resources/RegisterPhonePoolPage'
+import { RegisterEmailPoolPage } from '@/pages/resources/RegisterEmailPoolPage'
 import { AddressesPage } from '@/pages/addresses/AddressesPage'
 import { TargetAsinsPage } from '@/pages/targetAsins/TargetAsinsPage'
 import { AsinClickRecordsPage } from '@/pages/targetAsins/AsinClickRecordsPage'
 import { TaskReportParsePage } from '@/pages/tools/TaskReportParsePage'
+import { CaptchaAssistPage } from '@/pages/tools/CaptchaAssistPage'
 import { SystemSettingsPage } from '@/pages/settings/SystemSettingsPage'
 import { TaskSavedRecordsPage } from '@/pages/tasks/TaskSavedRecordsPage'
 
@@ -108,12 +112,17 @@ function App() {
             }
           />
           <Route path="tasks/register" element={<RegisterTasksPage />} />
+          <Route path="auto-register/amazon-accounts" element={<AmazonAccountsPage />} />
+          <Route path="resources/phone-pool" element={<RegisterPhonePoolPage />} />
+          <Route path="resources/email-pool" element={<RegisterEmailPoolPage />} />
+          <Route path="register-code-pools" element={<Navigate to="/resources/phone-pool" replace />} />
           <Route path="tasks/saved-records" element={<TaskSavedRecordsPage />} />
           <Route path="settings" element={<SystemSettingsPage />} />
           <Route path="addresses" element={<AddressesPage />} />
           <Route path="target-asins" element={<TargetAsinsPage />} />
           <Route path="asin-click-records" element={<AsinClickRecordsPage />} />
           <Route path="tools/task-report-parse" element={<TaskReportParsePage />} />
+          <Route path="tools/captcha-assist" element={<CaptchaAssistPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/tasks" replace />} />
       </Routes>

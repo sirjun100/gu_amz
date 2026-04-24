@@ -192,6 +192,177 @@ var 运维接口 = {
     }
   },
 
+  /** 注册任务开始后创建/更新账号记录（POST /client/amazon-accounts/bootstrap） */
+  亚马逊账号上报引导: function (taskId) {
+    var tid = Number(taskId);
+    if (isNaN(tid) || tid <= 0) {
+      loge("亚马逊账号上报: 无效 taskId");
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/bootstrap";
+    var body = { device_id: AMZ_CONFIG.deviceId, task_id: tid };
+    var res = http.postJSON(url, body, AMZ_CONFIG.httpTimeoutMs, null);
+    logd("amazon bootstrap => " + res);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("amazon bootstrap 解析: " + e);
+      return null;
+    }
+  },
+
+  亚马逊账号标记TOTP成功: function (phone) {
+    var ph = phone != null ? String(phone).trim() : "";
+    if (ph.length === 0) {
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/totp-done";
+    var body = { phone: ph };
+    var res = http.postJSON(url, body, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("amazon totp-done 解析: " + e);
+      return null;
+    }
+  },
+
+  亚马逊账号标记地址成功: function (phone) {
+    var ph = phone != null ? String(phone).trim() : "";
+    if (ph.length === 0) {
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/address-done";
+    var body = { phone: ph };
+    var res = http.postJSON(url, body, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("amazon address-done 解析: " + e);
+      return null;
+    }
+  },
+
+  /** 上传全屏截图供服务端解析 TOTP 二维码（multipart） */
+  上传TOTP二维码截图: function (phone, imagePath) {
+    var ph = phone != null ? String(phone).trim() : "";
+    if (ph.length === 0) {
+      loge("TOTP截图上传: phone 为空");
+      return null;
+    }
+    var p = imagePath != null ? String(imagePath).trim() : "";
+    if (p.length === 0) {
+      loge("TOTP截图上传: 路径为空");
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/totp-qr";
+    var params = { phone: ph, device_id: AMZ_CONFIG.deviceId };
+    var files = { image: p };
+    var res = http.httpPost(url, params, files, AMZ_CONFIG.httpTimeoutMs, null);
+    logd("totp-qr => " + res);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      loge("totp-qr 解析失败: " + e);
+      return null;
+    }
+  },
+
+  /** 拉取当前 TOTP 6 位（须 task 归属本机 device_id），完整 JSON */
+  获取亚马逊账号TOTP码: function (phone) {
+    var ph = phone != null ? String(phone).trim() : "";
+    if (ph.length === 0) {
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/totp-code";
+    var params = { phone: ph, device_id: AMZ_CONFIG.deviceId };
+    var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("totp-code 解析: " + e);
+      return null;
+    }
+  },
+
+  /** 按任务 ID 向服务端取一次当前 TOTP（仅单次请求，返回 6 位字符串或 ""） */
+  获取任务TOTP验证码: function (phone) {
+    var o = 运维接口.获取亚马逊账号TOTP码(phone);
+    if (o == null || o.totp_code == null) {
+      return "";
+    }
+    var c = String(o.totp_code).trim();
+    return c.length === 6 ? c : "";
+  },
+
+  /** 上传全屏截图，等待管理端标注坐标（multipart） */
+  上传人工验证码截图: function (taskId, imagePath) {
+    var tid = Number(taskId);
+    if (isNaN(tid) || tid <= 0) {
+      loge("人工验证码: 无效 taskId");
+      return null;
+    }
+    var p = imagePath != null ? String(imagePath).trim() : "";
+    if (p.length === 0) {
+      loge("人工验证码: 路径为空");
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/captcha-assist/upload";
+    var params = { task_id: String(tid), device_id: AMZ_CONFIG.deviceId };
+    var files = { image: p };
+    var res = http.httpPost(url, params, files, AMZ_CONFIG.httpTimeoutMs, null);
+    logd("captcha-assist upload => " + res);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      loge("captcha-assist upload 解析失败: " + e);
+      return null;
+    }
+  },
+
+  /** 轮询人工验证码是否已标注（约 3s 一次由调用方 sleep） */
+  获取人工验证码点击结果: function (taskId, sessionId) {
+    var tid = Number(taskId);
+    var sid = Number(sessionId);
+    if (isNaN(tid) || tid <= 0 || isNaN(sid) || sid <= 0) {
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/captcha-assist/result";
+    var params = {
+      task_id: String(tid),
+      device_id: AMZ_CONFIG.deviceId,
+      session_id: String(sid),
+    };
+    var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("captcha-assist result 解析: " + e);
+      return null;
+    }
+  },
+
   上报结案: function (taskId, lines, imagePaths) {
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/tasks/" + taskId + "/report";
     var params = {

@@ -64,6 +64,66 @@ export type AsinClickRecordRow = {
   created_at: string | null
 }
 
+/** 手机接码库一行（任务创建后 consumed_at / register_task_id 有值） */
+export type RegisterPhonePoolRow = {
+  id: number
+  phone: string
+  sms_link: string
+  consumed_at: string | null
+  register_task_id: number | null
+  created_at: string | null
+}
+
+/** 邮箱接码库一行；列表接口不返回明文密码，仅 masked */
+export type RegisterEmailPoolRow = {
+  id: number
+  email: string
+  code_link: string
+  email_login_password_masked?: string
+  consumed_at: string | null
+  register_task_id: number | null
+  created_at: string | null
+}
+
+export type RegisterCodePoolsStats = {
+  phone_available: number
+  phone_total: number
+  email_available: number
+  email_total: number
+}
+
+/** 亚马逊账号快照（管理端列表含当前 TOTP，不含密钥） */
+export type AmazonAccountRow = {
+  id: number
+  task_id: number
+  device_id: string | null
+  phone: string | null
+  account_username: string | null
+  account_password: string | null
+  env_name: string | null
+  registration_json: string | null
+  address_set_at: string | null
+  totp_set_at: string | null
+  totp_image_stored_name: string | null
+  totp_code_now: string | null
+  address_configured?: boolean
+  totp_configured?: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
+/** 人工验证码协助队列项 */
+export type CaptchaAssistPendingItem = {
+  id: number
+  task_id: number
+  device_id: string | null
+  image_stored_name: string | null
+  img_width: number
+  img_height: number
+  status: string
+  created_at: string | null
+}
+
 export type PaginatedRows<T = Record<string, unknown>> = {
   items: T[]
   page: number

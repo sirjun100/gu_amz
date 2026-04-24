@@ -166,11 +166,11 @@ function 执行一条任务(task) {
     if (tt === "search_click") {
       关键词广告点击流程(task);
     } else if (tt === "related_click") {
-      相关商品广告点击流程(task);
+      //相关商品广告点击流程(task);
     } else if (tt === "similar_click") {
-      同行同类广告点击流程(task);
+     // 同行同类广告点击流程(task);
     } else if (tt === "register") {
-      throw new Error("register 任务尚未在本客户端实现");
+      亚马逊账户注册(task);
     } else {
       throw new Error("未知任务类型: " + tt);
     }

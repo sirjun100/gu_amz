@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<hierarchy wh="828,1792" orientation="1" scale="2.000000" nid="1400572393JA87JI5T" childcount="1" left="" top=""> 
+ <node depth="0" type="Application" id="" name="Amazon" value="" label="Amazon" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1546964676LBQYWXJ5" childcount="3" left="0" top="0" right="828" bottom="1792"> 
+  <node depth="1" type="Window" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="11841837696MRJIEYA" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+   <node depth="2" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1992352719K6ZCQYQ9" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+    <node depth="3" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="2113902783XCOHFKIG" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+     <node depth="4" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="122108714ELGZJPMC" childcount="4" left="0" top="0" right="828" bottom="1792"> 
+      <node depth="5" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="216" bounds="[0,0][828,216]" nid="1754525158UDGCVJKH" childcount="2" left="0" top="0" right="828" bottom="216"> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="216" bounds="[0,0][828,216]" nid="4234049602YSNIPJM" childcount="2" left="0" top="0" right="828" bottom="216"> 
+        <node depth="7" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="0" y="0" width="828" height="96" bounds="[0,0][828,96]" nid="411565144O86YZ8MT" childcount="0" left="0" top="0" right="828" bottom="96"></node> 
+        <node depth="7" type="Other" id="cxi_top_nav" name="cxi_top_nav" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="0" y="96" width="828" height="120" bounds="[0,96][828,216]" nid="648485385ZHGLD1KK" childcount="2" left="0" top="96" right="828" bottom="216"> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="96" width="88" height="120" bounds="[0,96][88,216]" nid="13702430462GNXSZB3" childcount="1" left="0" top="96" right="88" bottom="216"> 
+          <node depth="9" type="Button" id="nav_back_button" name="nav_back_button" value="" label="Back" enable="true" accessible="true" selected="false" index="0" visible="true" x="0" y="96" width="88" height="120" bounds="[0,96][88,216]" nid="7592718943GX8RI9Z" childcount="0" left="0" top="96" right="88" bottom="216"></node> 
+         </node> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="88" y="104" width="716" height="104" bounds="[88,104][804,208]" nid="176409882BCKEJ34Q" childcount="2" left="88" top="104" right="804" bottom="208"> 
+          <node depth="9" type="SearchField" id="searchTextField" name="searchTextField" value="" label="Search Amazon" enable="true" accessible="true" selected="false" index="0" visible="true" x="88" y="110" width="716" height="88" bounds="[88,110][804,198]" nid="350943505N05HNNT1" childcount="0" left="88" top="110" right="804" bottom="198"></node> 
+          <node depth="9" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="628" y="110" width="176" height="88" bounds="[628,110][804,198]" nid="604616549TB4B1QT8" childcount="2" left="628" top="110" right="804" bottom="198"> 
+           <node depth="10" type="Button" id="SearchBarCameraIngress" name="SearchBarCameraIngress" value="" label="Scan Products" enable="true" accessible="true" selected="false" index="0" visible="false" x="628" y="110" width="88" height="88" bounds="[628,110][716,198]" nid="99048723VMYJI1PR" childcount="0" left="628" top="110" right="716" bottom="198"></node> 
+           <node depth="10" type="Button" id="SearchBarVoiceIngress" name="SearchBarVoiceIngress" value="" label="Voice Search, tap and say what you want to search for. Double tap anywhere to cancel." enable="true" accessible="true" selected="false" index="1" visible="false" x="716" y="110" width="88" height="88" bounds="[716,110][804,198]" nid="295218088Y0CGPO64" childcount="0" left="716" top="110" right="804" bottom="198"></node> 
+          </node> 
+         </node> 
+        </node> 
+       </node> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="0" y="0" width="828" height="400" bounds="[0,0][828,400]" nid="13837217231YR1M9FD" childcount="0" left="0" top="0" right="828" bottom="400"></node> 
+      </node> 
+      <node depth="5" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="0" y="1628" width="828" height="164" bounds="[0,1628][828,1792]" nid="100052513413YOM0TB" childcount="4" left="0" top="1628" right="828" bottom="1792"> 
+       <node depth="6" type="Button" id="home" name="home" value="" label="Home" enable="true" accessible="true" selected="false" index="0" visible="true" x="0" y="1628" width="208" height="96" bounds="[0,1628][208,1724]" nid="76677356W0IRQZRT" childcount="0" left="0" top="1628" right="208" bottom="1724"></node> 
+       <node depth="6" type="Button" id="meTab" name="meTab" value="" label="Your Amazon" enable="true" accessible="true" selected="false" index="1" visible="true" x="206" y="1628" width="208" height="96" bounds="[206,1628][414,1724]" nid="1342385725U18BMMN0" childcount="0" left="206" top="1628" right="414" bottom="1724"></node> 
+       <node depth="6" type="Button" id="cartTab" name="cartTab" value="" label="Cart 0 items" enable="true" accessible="true" selected="false" index="2" visible="true" x="414" y="1628" width="208" height="96" bounds="[414,1628][622,1724]" nid="1303394548SRZRYLWZ" childcount="0" left="414" top="1628" right="622" bottom="1724"></node> 
+       <node depth="6" type="Button" id="menuTab" name="menuTab" value="" label="Menu. Contains your orders, your account, shop by department, programs and features, settings, and customer service" enable="true" accessible="true" selected="false" index="3" visible="true" x="620" y="1628" width="208" height="96" bounds="[620,1628][828,1724]" nid="1616204977RFT1VTD3" childcount="0" left="620" top="1628" right="828" bottom="1724"></node> 
+      </node> 
+      <node depth="5" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="2" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="1951710519ROZG724F" childcount="2" left="0" top="184" right="828" bottom="1792"> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="1030686534YTFJY1ZT" childcount="1" left="0" top="184" right="828" bottom="1792"> 
+        <node depth="7" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="1901391751GS4G4EEH" childcount="1" left="0" top="184" right="828" bottom="1792"> 
+         <node depth="8" type="WebView" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="1005505984Y6ZATQ8S" childcount="1" left="0" top="184" right="828" bottom="1792"> 
+          <node depth="9" type="WebView" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="17869339038ZXFC7WQ" childcount="3" left="0" top="184" right="828" bottom="1792"> 
+           <node depth="10" type="WebView" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="184" width="828" height="1608" bounds="[0,184][828,1792]" nid="7981009108PRC9B6A" childcount="1" left="0" top="184" right="828" bottom="1792"> 
+            <node depth="11" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="0" height="0" bounds="[0,0][0,0]" nid="2037180172SKSQB17H" childcount="1" left="0" top="0" right="0" bottom="0"> 
+             <node depth="12" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="883008812KGHUL945" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+              <node depth="13" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="216" width="828" height="1608" bounds="[0,216][828,1824]" nid="1297006397S8RK49B1" childcount="1" left="0" top="216" right="828" bottom="1824"> 
+               <node depth="14" type="Other" id="" name="Your Addresses" value="" label="Your Addresses" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="216" width="828" height="1508" bounds="[0,216][828,1724]" nid="1921918023ZHIT3SFL" childcount="4" left="0" top="216" right="828" bottom="1724"> 
+                <node depth="15" type="Other" id="" name="Your Addresses" value="1" label="Your Addresses" enable="true" accessible="false" selected="false" index="0" visible="false" x="26" y="234" width="776" height="72" bounds="[26,234][802,306]" nid="1824844189PSVCRNJS" childcount="1" left="26" top="234" right="802" bottom="306"> 
+                 <node depth="16" type="StaticText" id="" name="Your Addresses" value="Your Addresses" label="Your Addresses" enable="true" accessible="true" selected="false" index="0" visible="false" x="26" y="236" width="344" height="60" bounds="[26,236][370,296]" nid="14337786687NSULAS3" childcount="0" left="26" top="236" right="370" bottom="296"></node> 
+                </node> 
+                <node depth="15" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="26" y="306" width="776" height="224" bounds="[26,306][802,530]" nid="1836729128DUQ0KHRV" childcount="2" left="26" top="306" right="802" bottom="530"> 
+                 <node depth="16" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="26" y="306" width="776" height="104" bounds="[26,306][802,410]" nid="185112956447FLFU6N" childcount="1" left="26" top="306" right="802" bottom="410"> 
+                  <node depth="17" type="Link" id="" name="Add a new address" value="" label="Add a new address" enable="true" accessible="false" selected="false" index="0" visible="false" x="60" y="334" width="272" height="40" bounds="[60,334][332,374]" nid="622226058CFFNKCXG" childcount="1" left="60" top="334" right="332" bottom="374"> 
+                   <node depth="18" type="Link" id="" name="Add a new address" value="" label="Add a new address" enable="true" accessible="false" selected="false" index="0" visible="false" x="60" y="334" width="272" height="40" bounds="[60,334][332,374]" nid="1574178077KL79TCBF" childcount="1" left="60" top="334" right="332" bottom="374"> 
+                    <node depth="19" type="StaticText" id="" name="Add a new address" value="Add a new address" label="Add a new address" enable="true" accessible="true" selected="false" index="0" visible="false" x="60" y="334" width="272" height="40" bounds="[60,334][332,374]" nid="1644717708KPTFLNMQ" childcount="0" left="60" top="334" right="332" bottom="374"></node> 
+                   </node> 
+                  </node> 
+                 </node> 
+                 <node depth="16" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="26" y="426" width="776" height="104" bounds="[26,426][802,530]" nid="602588943V64HTCMO" childcount="1" left="26" top="426" right="802" bottom="530"> 
+                  <node depth="17" type="Link" id="" name="Add a new pickup location" value="" label="Add a new pickup location" enable="true" accessible="false" selected="false" index="0" visible="true" x="60" y="454" width="382" height="40" bounds="[60,454][442,494]" nid="893299650SNKLPFP9" childcount="1" left="60" top="454" right="442" bottom="494"> 
+                   <node depth="18" type="Link" id="" name="Add a new pickup location" value="" label="Add a new pickup location" enable="true" accessible="false" selected="false" index="0" visible="true" x="60" y="454" width="382" height="40" bounds="[60,454][442,494]" nid="1216345245YVKX9IF3" childcount="1" left="60" top="454" right="442" bottom="494"> 
+                    <node depth="19" type="StaticText" id="" name="Add a new pickup location" value="Add a new pickup location" label="Add a new pickup location" enable="true" accessible="true" selected="false" index="0" visible="true" x="60" y="454" width="382" height="40" bounds="[60,454][442,494]" nid="17764738805GREXQ75" childcount="0" left="60" top="454" right="442" bottom="494"></node> 
+                   </node> 
+                  </node> 
+                 </node> 
+                </node> 
+                <node depth="15" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="2" visible="false" x="0" y="0" width="0" height="0" bounds="[0,0][0,0]" nid="482719636J9P67C1K" childcount="0" left="0" top="0" right="0" bottom="0"></node> 
+                <node depth="15" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="3" visible="false" x="0" y="0" width="0" height="0" bounds="[0,0][0,0]" nid="15501556378WRVK6X1" childcount="0" left="0" top="0" right="0" bottom="0"></node> 
+               </node> 
+              </node> 
+             </node> 
+            </node> 
+           </node> 
+           <node depth="10" type="Other" id="" name="Vertical scroll bar, 2 pages" value="0%" label="Vertical scroll bar, 2 pages" enable="true" accessible="false" selected="false" index="1" visible="true" x="762" y="216" width="60" height="1388" bounds="[762,216][822,1604]" nid="1804186488E6IQPHZG" childcount="0" left="762" top="216" right="822" bottom="1604"></node> 
+           <node depth="10" type="Other" id="" name="Horizontal scroll bar, 1 page" value="0%" label="Horizontal scroll bar, 1 page" enable="true" accessible="false" selected="false" index="2" visible="false" x="70" y="1726" width="688" height="60" bounds="[70,1726][758,1786]" nid="346878726LU8GF01B" childcount="0" left="70" top="1726" right="758" bottom="1786"></node> 
+          </node> 
+         </node> 
+        </node> 
+       </node> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="0" y="184" width="16" height="1608" bounds="[0,184][16,1792]" nid="627351312LBH0YYCA" childcount="0" left="0" top="184" right="16" bottom="1792"></node> 
+      </node> 
+      <node depth="5" type="Button" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="3" visible="false" x="0" y="0" width="0" height="0" bounds="[0,0][0,0]" nid="1385021982W24KGE0F" childcount="0" left="0" top="0" right="0" bottom="0"></node> 
+     </node> 
+    </node> 
+   </node> 
+  </node> 
+  <node depth="1" type="Window" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1958328644AQA3C1Y1" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+   <node depth="2" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="134107158GBGAQ3XI" childcount="2" left="0" top="0" right="828" bottom="1792"> 
+    <node depth="3" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1155901189DHCXSXP" childcount="0" left="0" top="0" right="828" bottom="1792"></node> 
+    <node depth="3" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="0" y="1792" width="828" height="486" bounds="[0,1792][828,2278]" nid="985820182MTRJALGD" childcount="0" left="0" top="1792" right="828" bottom="2278"></node> 
+   </node> 
+  </node> 
+  <node depth="1" type="Window" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="2" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="59281811JSHLYI2I" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+   <node depth="2" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1988304660G6GU8H97" childcount="0" left="0" top="0" right="828" bottom="1792"></node> 
+  </node> 
+ </node> 
+</hierarchy>

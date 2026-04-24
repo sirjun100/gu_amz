@@ -26,13 +26,18 @@ const routeTitles: Record<string, string> = {
   '/tasks/search-click': '搜索产品点击',
   '/tasks/related-click': '相关产品点击',
   '/tasks/similar-click': '同类产品点击',
-  '/tasks/register': '自动注册任务',
+  '/tasks/register': '创建亚马逊注册任务',
+  '/auto-register/amazon-accounts': '亚马逊账号管理',
+  '/resources/phone-pool': '手机接码管理',
+  '/resources/email-pool': '邮箱接码管理',
+  '/register-code-pools': '手机接码管理',
   '/tasks/saved-records': '任务数据归档',
   '/addresses': '地址管理',
   '/target-asins': '目标 ASIN',
   '/asin-click-records': 'ASIN 点击记录',
   '/settings': '系统设置',
   '/tools/task-report-parse': '上报日志解析',
+  '/tools/captcha-assist': '人工验证码协助',
 }
 
 const HOME_PATH = '/tasks'

@@ -2,8 +2,8 @@
  * 亚马逊任务客户端 — 全局配置（与 客户端上报日志约定.md / README 服务端接口一致）
  */
 var AMZ_CONFIG = {
-  /** 服务根地址，无末尾斜杠，例如 http://192.168.1.10:5090 */
-  apiBase: "http://156.238.248.137:5090",
+  /** 服务根地址，无末尾斜杠，例如 http://156.238.248.137:5090 */
+  apiBase: "http://127.0.0.1:5090",
   /** 默认由 EasyClick device.getDeviceId() 填充；无设备 API 时可由界面 deviceId 回退 */
   deviceId: "",
   /** AMG 在 iOS 上的 Bundle Identifier（真机以安装包为准，必填方能打开 AMG） */

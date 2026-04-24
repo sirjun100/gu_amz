@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import io
@@ -20,8 +20,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .db import db, normalize_target_asin, parse_task_params
+from .totp_qr import totp_current_code
 from .task_report_parse import parse_task_report_footer
-from .paths import STATIC_WEB_DIR, TASK_IMAGE_DIR, ensure_data_dir
+from .paths import STATIC_WEB_DIR, TASK_IMAGE_DIR, ensure_data_dir, safe_task_image_path
 
 STATIC = STATIC_WEB_DIR
 
@@ -57,7 +58,7 @@ def _decode_token(token: str) -> dict[str, Any]:
     except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效或过期的令牌",
+            detail="鏃犳晥鎴栬繃鏈熺殑浠ょ墝",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -66,7 +67,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> dic
     data = _decode_token(token)
     uid = data.get("sub")
     if not uid:
-        raise HTTPException(status_code=401, detail="无效令牌")
+        raise HTTPException(status_code=401, detail="鏃犳晥浠ょ墝")
     return {
         "id": int(uid),
         "username": data.get("username", ""),
@@ -118,23 +119,23 @@ class BatchClickTasksBody(BaseModel):
     res_folder_name: str = Field(
         "",
         min_length=0,
-        description="与关键词 1:1；客户端 res 下资源目录名",
+        description="涓庡叧閿瘝 1:1锛涘鎴风 res 涓嬭祫婧愮洰褰曞悕",
     )
     product_title: str = Field(
         "",
         min_length=0,
-        description="已废弃，仅兼容旧请求体",
+        description="deprecated, for backward compatibility only",
     )
     product_titles: list[str] = Field(
         default_factory=list,
-        description="已废弃，仅兼容旧请求体",
+        description="deprecated, for backward compatibility only",
     )
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
     per_device_counts: dict[str, int] = Field(default_factory=dict)
     total_count: int = Field(0, ge=0, le=100000)
     save_data_record: bool = Field(
-        False, description="勾选后任务成功结案时写入归档（仅成功，含参数与状态）"
+        False, description="鍕鹃€夊悗浠诲姟鎴愬姛缁撴鏃跺啓鍏ュ綊妗ｏ紙浠呮垚鍔燂紝鍚弬鏁颁笌鐘舵€侊級"
     )
 
 
@@ -142,9 +143,13 @@ class BatchRegisterBody(BaseModel):
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
     per_device_counts: dict[str, int] = Field(default_factory=dict)
-    raw_text: str = Field(..., min_length=1)
+    total_count: int = Field(0, ge=0, le=100000, description="鏅鸿兘鍒嗛厤鏃讹細瑕佸垱寤虹殑娉ㄥ唽浠诲姟鎬绘暟")
+    bind_email: bool = Field(
+        False, description="涓烘瘡涓换鍔′粠閭鎺ョ爜搴撶粦瀹氫竴鏉★紙涓庢墜鏈轰竴涓€瀵瑰簲锛屽悇搴撳潎浠呰兘鐢ㄤ竴娆★級"
+    )
     save_data_record: bool = Field(
-        True, description="默认勾选：创建时写入归档，结案时合并成功/失败与详情"
+        True,
+        description="default true: save creation snapshot and merge final result on task completion",
     )
 
 
@@ -187,8 +192,17 @@ class ClientAsinClickBody(BaseModel):
     keyword: str = Field(..., min_length=1, max_length=512)
 
 
+class ClientAmazonBootstrapBody(BaseModel):
+    device_id: str = Field(..., min_length=1, max_length=128)
+    task_id: int = Field(..., ge=1)
+
+
+class ClientAmazonAccountStageBody(BaseModel):
+    phone: str = Field(..., min_length=1, max_length=64)
+
+
 class TaskReportParsePreviewBody(BaseModel):
-    """联调：模拟客户端 log_lines，查看服务端解析结果（与 客户端上报日志约定.md 一致）。"""
+    """Preview parse output for client report logs."""
 
     log_lines: list[str]
 
@@ -292,7 +306,7 @@ def _xlsx_row_to_address(row) -> dict[str, Any] | None:
     }
 
 
-app = FastAPI(title="亚马逊运维系统", version="1.0.0")
+app = FastAPI(title="AMZ Ops", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -317,7 +331,7 @@ def _startup():
 async def login(form: Annotated[OAuth2PasswordRequestForm, Depends()]):
     user = db.verify_admin_login(form.username, form.password)
     if not user:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        raise HTTPException(status_code=401, detail="鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒")
     token = _create_token(user["id"], user["username"], user["is_admin"])
     return TokenResponse(access_token=token)
 
@@ -330,7 +344,7 @@ async def me(user: CurrentUser):
 @app.get("/api/v1/admin/devices/options")
 async def admin_device_options(user: CurrentUser):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     rows = db.list_devices_options()
     return {"items": [_serialize_row(r) for r in rows]}
 
@@ -343,7 +357,7 @@ async def admin_devices_list(
     q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_devices_paginated(page, per_page, q)
     ids = [str(r["device_id"]) for r in rows]
     counts_map = db.get_pending_task_counts_by_device(ids)
@@ -366,7 +380,7 @@ async def admin_devices_list(
 @app.patch("/api/v1/admin/devices/{device_id}/alias")
 async def admin_device_set_alias(user: CurrentUser, device_id: str, body: DeviceAliasBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     db.set_device_alias(device_id, body.alias)
     return {"ok": True}
 
@@ -374,11 +388,11 @@ async def admin_device_set_alias(user: CurrentUser, device_id: str, body: Device
 @app.patch("/api/v1/admin/devices/{device_id}/screenshot-upload-policy")
 async def admin_device_screenshot_upload_policy(user: CurrentUser, device_id: str, body: DeviceScreenshotPolicyBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     try:
         db.upsert_device_screenshot_upload_policy(device_id, body.screenshot_upload_policy)
     except ValueError:
-        raise HTTPException(status_code=400, detail="设备 ID 无效")
+        raise HTTPException(status_code=400, detail="璁惧 ID 鏃犳晥")
     return {
         "ok": True,
         "screenshot_upload_policy": db.get_device_screenshot_upload_policy(device_id),
@@ -393,7 +407,7 @@ async def admin_keywords_list(
     q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_keywords_paginated(page, per_page, q)
     return _paginate_rows(total, page, per_page, rows)
 
@@ -401,7 +415,7 @@ async def admin_keywords_list(
 @app.post("/api/v1/admin/keywords/import")
 async def admin_keywords_import(user: CurrentUser, file: UploadFile = File(...)):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     raw = await file.read()
     try:
         text = raw.decode("utf-8")
@@ -415,21 +429,21 @@ async def admin_keywords_import(user: CurrentUser, file: UploadFile = File(...))
 @app.delete("/api/v1/admin/keywords/{keyword_id}")
 async def admin_keyword_delete(user: CurrentUser, keyword_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if not db.keyword_delete(keyword_id):
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return {"ok": True}
 
 
 @app.post("/api/v1/admin/tasks/batch-click")
 async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if body.task_type not in CLICK_TYPES:
-        raise HTTPException(status_code=400, detail="task_type 无效")
+        raise HTTPException(status_code=400, detail="task_type 鏃犳晥")
     device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
     if not device_ids:
-        raise HTTPException(status_code=400, detail="请至少选择一台设备")
+        raise HTTPException(status_code=400, detail="璇疯嚦灏戦€夋嫨涓€鍙拌澶?")
     pairs: list[tuple[str, int]] = []
     if body.mode == "manual":
         for d in device_ids:
@@ -439,11 +453,11 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
     else:
         total = int(body.total_count)
         if total <= 0:
-            raise HTTPException(status_code=400, detail="智能分配请填写总任务数")
+            raise HTTPException(status_code=400, detail="鏅鸿兘鍒嗛厤璇峰～鍐欐€讳换鍔℃暟")
         counts = _distribute_total(total, len(device_ids))
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
     if not pairs:
-        raise HTTPException(status_code=400, detail="没有可创建的任务数量")
+        raise HTTPException(status_code=400, detail="娌℃湁鍙垱寤虹殑浠诲姟鏁伴噺")
     fn = (body.res_folder_name or "").strip()
     if not fn:
         legacy = [str(t).strip() for t in (body.product_titles or []) if str(t).strip()]
@@ -453,7 +467,7 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
         elif one:
             fn = one
     if not fn:
-        raise HTTPException(status_code=400, detail="请填写资源文件夹名 res_folder_name（与关键词 1:1）")
+        raise HTTPException(status_code=400, detail="璇峰～鍐欒祫婧愭枃浠跺す鍚?res_folder_name锛堜笌鍏抽敭璇?1:1锛?")
     n = db.insert_click_tasks_batch(
         body.task_type,
         body.keyword.strip(),
@@ -464,69 +478,194 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
     return {"ok": True, "created": n}
 
 
-def _parse_phones_from_text(raw: str) -> list[str]:
-    out: list[str] = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        first = line.split("\t", 1)[0].split(",", 1)[0].strip()
-        if first:
-            out.append(first)
-    return out
+class ImportLinesBody(BaseModel):
+    text: str = Field("", description="澶氳鏂囨湰锛屼竴琛屼竴鏉?")
+
+
+class RegisterCodePoolsStatsResponse(BaseModel):
+    phone_available: int
+    phone_total: int
+    email_available: int
+    email_total: int
+
+
+class PoolDeleteBody(BaseModel):
+    ids: list[int] = Field(default_factory=list)
 
 
 @app.post("/api/v1/admin/tasks/batch-register")
 async def admin_tasks_batch_register(user: CurrentUser, body: BatchRegisterBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
-    phones = _parse_phones_from_text(body.raw_text)
-    if not phones:
-        raise HTTPException(status_code=400, detail="请填写手机号，一行一个")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
     if not device_ids:
-        raise HTTPException(status_code=400, detail="请至少选择一台设备")
+        raise HTTPException(status_code=400, detail="璇疯嚦灏戦€夋嫨涓€鍙拌澶?")
     pairs: list[tuple[str, int]] = []
     if body.mode == "manual":
         for d in device_ids:
             c = int(body.per_device_counts.get(d, 0))
             if c > 0:
                 pairs.append((d, c))
-        if sum(c for _, c in pairs) != len(phones):
-            raise HTTPException(
-                status_code=400,
-                detail=f"手动分配：所选设备任务数之和须等于手机号行数（当前手机号 {len(phones)} 条）",
-            )
+        n_tasks = sum(c for _, c in pairs)
+        if n_tasks <= 0:
+            raise HTTPException(status_code=400, detail="璇蜂负鎵€閫夎澶囧～鍐欏ぇ浜?0 鐨勪换鍔℃暟")
     else:
-        counts = _distribute_total(len(phones), len(device_ids))
+        total = int(body.total_count)
+        if total <= 0:
+            raise HTTPException(status_code=400, detail="鏅鸿兘鍒嗛厤璇峰～鍐欐€讳换鍔℃暟锛堜笖椤讳笉瓒呰繃鎵嬫満鎺ョ爜搴撳彲鐢ㄦ潯鏁帮級")
+        counts = _distribute_total(total, len(device_ids))
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
+        n_tasks = total
     if not pairs:
-        raise HTTPException(status_code=400, detail="没有可分配的任务数量")
+        raise HTTPException(status_code=400, detail="娌℃湁鍙垎閰嶇殑浠诲姟鏁伴噺")
     try:
-        n = db.insert_register_tasks_phones(phones, pairs, save_data_record=body.save_data_record)
+        n = db.insert_register_tasks_from_pool(
+            pairs, bind_email=body.bind_email, save_data_record=body.save_data_record
+        )
     except ValueError as e:
         code = str(e)
         if code == "EMPTY_ADDRESS_POOL":
-            raise HTTPException(status_code=400, detail="地址库为空，请先导入地址")
-        if code == "REGISTER_DEVICE_COUNT_MISMATCH":
-            raise HTTPException(status_code=400, detail="设备任务数与手机号数量不一致")
+            raise HTTPException(status_code=400, detail="鍦板潃搴撲负绌猴紝璇峰厛瀵煎叆鍦板潃")
         if code == "REGISTER_EMPTY_DEVICE":
-            raise HTTPException(status_code=400, detail="设备 ID 无效")
+            raise HTTPException(status_code=400, detail="璁惧 ID 鏃犳晥")
+        if code == "REGISTER_PHONE_POOL_EMPTY":
+            raise HTTPException(status_code=400, detail="鎵嬫満鎺ョ爜搴撳彲鐢ㄦ潯鏁颁笉瓒筹紝璇峰厛瀵煎叆鎴栫瓑寰呬换鍔℃秷鑰?")
+        if code == "REGISTER_EMAIL_POOL_EMPTY":
+            raise HTTPException(status_code=400, detail="閭鎺ョ爜搴撳彲鐢ㄦ潯鏁颁笉瓒筹紙鍕鹃€夌粦瀹氶偖绠辨椂椤讳笌浠诲姟鏁颁竴鑷达級")
         raise
+    if n != n_tasks:
+        raise HTTPException(status_code=500, detail="鍒涘缓鏁伴噺涓庨鏈熶笉涓€鑷?")
     return {"ok": True, "created": n}
+
+
+@app.get("/api/v1/admin/register-code-pools/stats", response_model=RegisterCodePoolsStatsResponse)
+async def admin_register_code_pools_stats(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    s = db.register_code_pools_stats()
+    return RegisterCodePoolsStatsResponse(**s)
+
+
+@app.post("/api/v1/admin/register-phone-pool/import")
+async def admin_register_phone_pool_import(user: CurrentUser, body: ImportLinesBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    lines = [ln for ln in (body.text or "").splitlines()]
+    n = db.import_register_phone_pool_lines(lines)
+    if n == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="鏈鍏ヤ换浣曡锛岃浣跨敤鏍煎紡锛氭墜鏈哄彿----鎺ョ爜閾炬帴锛堝洓涓嫳鏂囨í绾垮垎闅旓級",
+        )
+    return {"ok": True, "imported": n}
+
+
+@app.post("/api/v1/admin/register-email-pool/import")
+async def admin_register_email_pool_import(user: CurrentUser, body: ImportLinesBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    lines = [ln for ln in (body.text or "").splitlines()]
+    n = db.import_register_email_pool_lines(lines)
+    if n == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="未导入任何行，请使用格式：邮箱----密码----接码地址（三段用 ---- 分隔）",
+        )
+    return {"ok": True, "imported": n}
+
+
+@app.get("/api/v1/admin/register-phone-pool", response_model=PaginatedRows)
+async def admin_register_phone_pool_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    total, rows = db.list_register_phone_pool_paginated(page, per_page, q)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.post("/api/v1/admin/register-phone-pool/delete")
+async def admin_register_phone_pool_delete(user: CurrentUser, body: PoolDeleteBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    ids = [int(x) for x in body.ids if int(x) > 0]
+    if not ids:
+        raise HTTPException(status_code=400, detail="璇烽€夋嫨瑕佸垹闄ょ殑璁板綍")
+    n = db.delete_register_phone_pool_ids(ids)
+    return {"ok": True, "deleted": n}
+
+
+@app.post("/api/v1/admin/register-phone-pool/clear")
+async def admin_register_phone_pool_clear(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    n = db.clear_register_phone_pool()
+    return {"ok": True, "deleted": n}
+
+
+@app.get("/api/v1/admin/register-email-pool", response_model=PaginatedRows)
+async def admin_register_email_pool_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    total, rows = db.list_register_email_pool_paginated(page, per_page, q)
+    out = []
+    for r in rows:
+        item = _serialize_row(r)
+        pw = item.get("email_login_password")
+        if isinstance(pw, str) and len(pw) > 4:
+            item["email_login_password_masked"] = pw[:2] + "..." + pw[-2:]
+        else:
+            item["email_login_password_masked"] = "****"
+        item.pop("email_login_password", None)
+        out.append(item)
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    return PaginatedRows(
+        items=out,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+@app.post("/api/v1/admin/register-email-pool/delete")
+async def admin_register_email_pool_delete(user: CurrentUser, body: PoolDeleteBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    ids = [int(x) for x in body.ids if int(x) > 0]
+    if not ids:
+        raise HTTPException(status_code=400, detail="璇烽€夋嫨瑕佸垹闄ょ殑璁板綍")
+    n = db.delete_register_email_pool_ids(ids)
+    return {"ok": True, "deleted": n}
+
+
+@app.post("/api/v1/admin/register-email-pool/clear")
+async def admin_register_email_pool_clear(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    n = db.clear_register_email_pool()
+    return {"ok": True, "deleted": n}
 
 
 @app.get("/api/v1/admin/settings", response_model=AdminSettingsResponse)
 async def admin_get_settings(user: CurrentUser):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     return AdminSettingsResponse(task_retention_days=db.get_task_retention_days())
 
 
 @app.patch("/api/v1/admin/settings", response_model=AdminSettingsResponse)
 async def admin_patch_settings(user: CurrentUser, body: AdminSettingsPatchBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     db.set_task_retention_days(body.task_retention_days)
     try:
         db.purge_completed_tasks_older_than_days(db.get_task_retention_days())
@@ -544,7 +683,7 @@ async def admin_task_saved_records_list(
     q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_task_saved_records(page, per_page, task_type, q)
     total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
     return PaginatedRows(
@@ -564,7 +703,7 @@ async def admin_addresses_list(
     q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_addresses_paginated(page, per_page, q)
     return _paginate_rows(total, page, per_page, rows)
 
@@ -572,7 +711,7 @@ async def admin_addresses_list(
 @app.post("/api/v1/admin/addresses")
 async def admin_address_create(user: CurrentUser, body: UsAddressBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     aid = db.address_create(body.model_dump())
     return {"ok": True, "id": aid}
 
@@ -580,39 +719,39 @@ async def admin_address_create(user: CurrentUser, body: UsAddressBody):
 @app.get("/api/v1/admin/addresses/{address_id}")
 async def admin_address_get(user: CurrentUser, address_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     row = db.address_get(address_id)
     if not row:
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return _serialize_row(row)
 
 
 @app.put("/api/v1/admin/addresses/{address_id}")
 async def admin_address_update(user: CurrentUser, address_id: int, body: UsAddressBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if not db.address_update(address_id, body.model_dump()):
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return {"ok": True}
 
 
 @app.delete("/api/v1/admin/addresses/{address_id}")
 async def admin_address_delete(user: CurrentUser, address_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if not db.address_delete(address_id):
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return {"ok": True}
 
 
 @app.post("/api/v1/admin/addresses/import-xlsx")
 async def admin_addresses_import_xlsx(user: CurrentUser, file: UploadFile = File(...)):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     try:
         from openpyxl import load_workbook
     except ImportError:
-        raise HTTPException(status_code=500, detail="服务端未安装 openpyxl")
+        raise HTTPException(status_code=500, detail="鏈嶅姟绔湭瀹夎 openpyxl")
     data = await file.read()
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     ws = wb.active
@@ -623,7 +762,7 @@ async def admin_addresses_import_xlsx(user: CurrentUser, file: UploadFile = File
             rows_out.append(rec)
     wb.close()
     if not rows_out:
-        raise HTTPException(status_code=400, detail="未解析到有效行")
+        raise HTTPException(status_code=400, detail="鏈В鏋愬埌鏈夋晥琛?")
     n = db.addresses_import_rows(rows_out)
     return {"ok": True, "imported": n}
 
@@ -636,7 +775,7 @@ async def admin_target_asins_list(
     q: Optional[str] = None,
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_target_asins_paginated(page, per_page, q)
     return _paginate_rows(total, page, per_page, rows)
 
@@ -644,49 +783,49 @@ async def admin_target_asins_list(
 @app.post("/api/v1/admin/target-asins")
 async def admin_target_asin_create(user: CurrentUser, body: TargetAsinCreateBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     try:
         aid = db.target_asin_create(body.asin, body.note or None)
     except ValueError:
-        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+        raise HTTPException(status_code=400, detail="ASIN 鏍煎紡鏃犳晥锛堥渶 10锝?6 浣嶅瓧姣嶆暟瀛楋級")
     except pymysql.err.IntegrityError:
-        raise HTTPException(status_code=400, detail="ASIN 已存在")
+        raise HTTPException(status_code=400, detail="ASIN 宸插瓨鍦?")
     return {"ok": True, "id": aid}
 
 
 @app.get("/api/v1/admin/target-asins/{asin_id}")
 async def admin_target_asin_get(user: CurrentUser, asin_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     row = db.target_asin_get(asin_id)
     if not row:
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return _serialize_row(row)
 
 
 @app.put("/api/v1/admin/target-asins/{asin_id}")
 async def admin_target_asin_update(user: CurrentUser, asin_id: int, body: TargetAsinPatchBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if body.asin is None and body.note is None:
-        raise HTTPException(status_code=400, detail="请至少提供一个要修改的字段")
+        raise HTTPException(status_code=400, detail="璇疯嚦灏戞彁渚涗竴涓淇敼鐨勫瓧娈?")
     try:
         ok = db.target_asin_update(asin_id, body.asin, body.note)
     except ValueError:
-        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+        raise HTTPException(status_code=400, detail="ASIN 鏍煎紡鏃犳晥锛堥渶 10锝?6 浣嶅瓧姣嶆暟瀛楋級")
     except pymysql.err.IntegrityError:
-        raise HTTPException(status_code=400, detail="ASIN 与其他记录冲突")
+        raise HTTPException(status_code=400, detail="ASIN 涓庡叾浠栬褰曞啿绐?")
     if not ok:
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return {"ok": True}
 
 
 @app.delete("/api/v1/admin/target-asins/{asin_id}")
 async def admin_target_asin_delete(user: CurrentUser, asin_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     if not db.target_asin_delete(asin_id):
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     return {"ok": True}
 
 
@@ -696,10 +835,10 @@ async def admin_asin_click_records_list(
     page: int = Query(1, ge=1),
     per_page: int = Query(40, ge=1, le=100),
     q: Optional[str] = None,
-    asin: Optional[str] = Query(None, description="按 ASIN 精确筛选（与目标 ASIN 表一致的大写规范形式）"),
+    asin: Optional[str] = Query(None, description="鎸?ASIN 绮剧‘绛涢€夛紙涓庣洰鏍?ASIN 琛ㄤ竴鑷寸殑澶у啓瑙勮寖褰㈠紡锛?"),
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     total, rows = db.list_asin_click_records_paginated(page, per_page, q, asin)
     return _paginate_rows(total, page, per_page, rows)
 
@@ -707,7 +846,7 @@ async def admin_asin_click_records_list(
 @app.post("/api/v1/admin/task-report/parse-preview", response_model=TaskReportParsePreviewResponse)
 async def admin_task_report_parse_preview(user: CurrentUser, body: TaskReportParsePreviewBody):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     p = parse_task_report_footer(body.log_lines)
     fin: str | None = None
     if p.finished_at is not None:
@@ -734,11 +873,11 @@ async def admin_task_center_list(
     params_q: Optional[str] = Query(
         None,
         max_length=256,
-        description="在 params JSON 及遗留关键词/标题/手机等字段中模糊匹配",
+        description="鍦?params JSON 鍙婇仐鐣欏叧閿瘝/鏍囬/鎵嬫満绛夊瓧娈典腑妯＄硦鍖归厤",
     ),
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     pq = params_q.strip() if params_q and params_q.strip() else None
     total, rows = db.list_tasks_filtered(page, per_page, device_id, status_filter, task_type, pq)
     return _paginate_tasks(total, page, per_page, rows)
@@ -753,11 +892,11 @@ async def admin_task_delete_all_matching(
     params_q: Optional[str] = Query(
         None,
         max_length=256,
-        description="与列表接口一致；无筛选参数时删除库内全部任务",
+        description="涓庡垪琛ㄦ帴鍙ｄ竴鑷达紱鏃犵瓫閫夊弬鏁版椂鍒犻櫎搴撳唴鍏ㄩ儴浠诲姟",
     ),
 ):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     pq = params_q.strip() if params_q and params_q.strip() else None
     deleted, names = db.delete_tasks_matching_filters(device_id, status_filter, task_type, pq)
     for name in names:
@@ -772,10 +911,10 @@ async def admin_task_delete_all_matching(
 @app.get("/api/v1/admin/task-center/tasks/{task_id}")
 async def admin_task_center_detail(user: CurrentUser, task_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     task = db.get_task_by_id(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="浠诲姟涓嶅瓨鍦?")
     logs = db.get_task_logs(task_id)
     imgs = db.get_task_image_rows(task_id)
     return {
@@ -788,13 +927,13 @@ async def admin_task_center_detail(user: CurrentUser, task_id: int):
 @app.get("/api/v1/admin/task-center/screenshots/{image_id}")
 async def admin_task_screenshot_file(user: CurrentUser, image_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     row = db.get_image_by_id(image_id)
     if not row:
-        raise HTTPException(status_code=404, detail="不存在")
+        raise HTTPException(status_code=404, detail="涓嶅瓨鍦?")
     path = os.path.join(TASK_IMAGE_DIR, row["stored_name"])
     if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail="文件缺失")
+        raise HTTPException(status_code=404, detail="鏂囦欢缂哄け")
     media_type, _ = mimetypes.guess_type(path)
     return FileResponse(path, media_type=media_type or "application/octet-stream")
 
@@ -802,10 +941,10 @@ async def admin_task_screenshot_file(user: CurrentUser, image_id: int):
 @app.post("/api/v1/admin/task-center/tasks/{task_id}/retry")
 async def admin_task_retry(user: CurrentUser, task_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     ok, names = db.retry_failed_task(task_id)
     if not ok:
-        raise HTTPException(status_code=400, detail="仅失败状态可重试")
+        raise HTTPException(status_code=400, detail="浠呭け璐ョ姸鎬佸彲閲嶈瘯")
     for name in names:
         p = os.path.join(TASK_IMAGE_DIR, name)
         try:
@@ -818,10 +957,10 @@ async def admin_task_retry(user: CurrentUser, task_id: int):
 @app.delete("/api/v1/admin/task-center/tasks/{task_id}")
 async def admin_task_delete(user: CurrentUser, task_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     ok, names = db.delete_task_and_collect_images(task_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="浠诲姟涓嶅瓨鍦?")
     for name in names:
         p = os.path.join(TASK_IMAGE_DIR, name)
         try:
@@ -834,15 +973,15 @@ async def admin_task_delete(user: CurrentUser, task_id: int):
 @app.post("/api/v1/admin/task-center/tasks/{task_id}/redo")
 async def admin_task_redo(user: CurrentUser, task_id: int):
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="需要管理员权限")
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     try:
         new_id = db.clone_task_redo(task_id)
     except ValueError as e:
         if str(e) == "EMPTY_ADDRESS_POOL":
-            raise HTTPException(status_code=400, detail="地址库为空，无法复制注册任务")
+            raise HTTPException(status_code=400, detail="鍦板潃搴撲负绌猴紝鏃犳硶澶嶅埗娉ㄥ唽浠诲姟")
         raise
     if not new_id:
-        raise HTTPException(status_code=400, detail="无法复制该任务（类型不支持或数据不完整）")
+        raise HTTPException(status_code=400, detail="鏃犳硶澶嶅埗璇ヤ换鍔★紙绫诲瀷涓嶆敮鎸佹垨鏁版嵁涓嶅畬鏁达級")
     return {"ok": True, "new_task_id": new_id}
 
 
@@ -853,19 +992,255 @@ async def client_heartbeat(body: HeartbeatBody):
     return {"ok": True, "screenshot_upload_policy": pol}
 
 
+@app.post("/api/v1/client/amazon-accounts/bootstrap")
+async def client_amazon_accounts_bootstrap(body: ClientAmazonBootstrapBody):
+    """Create/update amazon account record after register success."""
+    db.upsert_device_heartbeat(body.device_id)
+    row = db.amazon_account_bootstrap(body.task_id, body.device_id, None)
+    if not row:
+        raise HTTPException(status_code=400, detail="浠诲姟涓嶅瓨鍦ㄣ€侀潪 register 绫诲瀷鎴栬澶囦笉鍖归厤")
+    out = _serialize_row(row)
+    if "totp_secret" in out:
+        del out["totp_secret"]
+    return {"ok": True, "account": out}
+
+
+@app.post("/api/v1/client/amazon-accounts/totp-done")
+async def client_amazon_accounts_totp_done(body: ClientAmazonAccountStageBody):
+    ok = db.amazon_account_mark_totp_set_by_phone(body.phone)
+    if not ok:
+        raise HTTPException(status_code=400, detail="手机号码未匹配到账号记录")
+    return {"ok": True}
+
+
+@app.post("/api/v1/client/amazon-accounts/address-done")
+async def client_amazon_accounts_address_done(body: ClientAmazonAccountStageBody):
+    ok = db.amazon_account_mark_address_set_by_phone(body.phone)
+    if not ok:
+        raise HTTPException(status_code=400, detail="手机号码未匹配到账号记录")
+    return {"ok": True}
+
+@app.post("/api/v1/client/amazon-accounts/totp-qr")
+async def client_amazon_accounts_totp_qr(
+    phone: str = Form(..., min_length=1, max_length=64),
+    device_id: str = Form(...),
+    image: UploadFile = File(...),
+):
+    db.upsert_device_heartbeat(device_id)
+    raw = await image.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="鍥剧墖涓虹┖")
+    out = db.amazon_account_apply_totp_upload(
+        phone, raw, image.filename or "totp.png"
+    )
+    if not out.get("ok"):
+        raise HTTPException(status_code=400, detail=out.get("error") or "澶勭悊澶辫触")
+    return {
+        "ok": True,
+        "totp_code": out.get("totp_code"),
+        "secret_saved": bool(out.get("secret_saved")),
+    }
+
+
+@app.get("/api/v1/client/amazon-accounts/totp-code")
+async def client_amazon_accounts_totp_code(
+    phone: str = Query(..., min_length=1, max_length=64),
+    device_id: Optional[str] = Query(None),
+):
+    did = (device_id or "").strip()
+    if did:
+        db.upsert_device_heartbeat(did)
+    data = db.amazon_account_totp_code_by_phone(phone)
+    if data is None:
+        raise HTTPException(status_code=400, detail="手机号码未匹配到账号记录")
+    return {"ok": True, **data}
+
+
+@app.get("/api/v1/admin/amazon-accounts", response_model=PaginatedRows)
+async def admin_amazon_accounts_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=100),
+    q: Optional[str] = None,
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    total, rows = db.list_amazon_accounts_paginated(page, per_page, q)
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        d = _serialize_row(r)
+        sec = r.get("totp_secret")
+        d["totp_code_now"] = totp_current_code(str(sec)) if sec else None
+        if "env_name" not in d and "environment" in d:
+            d["env_name"] = d.get("environment")
+        d["totp_configured"] = bool(r.get("totp_set_at")) or bool(sec)
+        d["address_configured"] = bool(r.get("address_set_at"))
+        d.pop("totp_secret", None)
+        items.append(d)
+    total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
+    return PaginatedRows(
+        items=items,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+    )
+
+
+@app.delete("/api/v1/admin/amazon-accounts/{account_id}")
+async def admin_amazon_account_delete(user: CurrentUser, account_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    ok = db.delete_amazon_account_by_id(account_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="璁板綍涓嶅瓨鍦?")
+    return {"ok": True}
+
+
+@app.post("/api/v1/admin/amazon-accounts/delete")
+async def admin_amazon_accounts_delete(user: CurrentUser, body: PoolDeleteBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    ids = [int(x) for x in body.ids if int(x) > 0]
+    if not ids:
+        raise HTTPException(status_code=400, detail="璇烽€夋嫨瑕佸垹闄ょ殑璁板綍")
+    n = db.delete_amazon_accounts_ids(ids)
+    return {"ok": True, "deleted": n}
+
+
+@app.post("/api/v1/admin/amazon-accounts/clear")
+async def admin_amazon_accounts_clear(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    n = db.clear_amazon_accounts()
+    return {"ok": True, "deleted": n}
+
+
+def _captcha_image_dimensions(body: bytes) -> tuple[int, int]:
+    try:
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(body))
+        return int(im.width), int(im.height)
+    except Exception:
+        return 0, 0
+
+
+@app.post("/api/v1/client/captcha-assist/upload")
+async def client_captcha_assist_upload(
+    task_id: int = Form(...),
+    device_id: str = Form(...),
+    image: UploadFile = File(...),
+):
+    """Client uploads captcha screenshot for manual assist."""
+    db.upsert_device_heartbeat(device_id)
+    did = device_id.strip()
+    t = db.get_task_by_id(int(task_id))
+    if not t:
+        raise HTTPException(status_code=404, detail="浠诲姟涓嶅瓨鍦?")
+    if str(t.get("device_id") or "").strip() != did:
+        raise HTTPException(status_code=403, detail="璁惧涓嶅尮閰?")
+    if (t.get("status") or "") != "running":
+        raise HTTPException(status_code=400, detail="浠呮墽琛屼腑浠诲姟鍙笂浼犱汉宸ラ獙璇佺爜鎴浘")
+    body = await image.read()
+    if not body:
+        raise HTTPException(status_code=400, detail="鍥剧墖涓虹┖")
+    max_mb = int(os.getenv("TASK_IMAGE_MAX_MB", "8"))
+    if len(body) > max_mb * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="鍥剧墖杩囧ぇ")
+    w, h = _captcha_image_dimensions(body)
+    ext = Path(image.filename or "").suffix.lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+    stored = f"captcha_{int(task_id)}_{uuid.uuid4().hex}{ext}"
+    ensure_data_dir()
+    dest = os.path.join(TASK_IMAGE_DIR, stored)
+    with open(dest, "wb") as f:
+        f.write(body)
+    sid = db.captcha_assist_create(int(task_id), did, stored, w, h)
+    if not sid:
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail="鍒涘缓浼氳瘽澶辫触")
+    return {"ok": True, "session_id": sid, "image_width": w, "image_height": h}
+
+
+@app.get("/api/v1/client/captcha-assist/result")
+async def client_captcha_assist_result(
+    task_id: int = Query(..., ge=1),
+    device_id: str = Query(..., min_length=1),
+    session_id: int = Query(..., ge=1),
+):
+    db.upsert_device_heartbeat(device_id)
+    out = db.captcha_assist_client_poll(task_id, device_id, session_id)
+    if not out:
+        raise HTTPException(status_code=403, detail="绂佹璁块棶")
+    return {"ok": True, **out}
+
+
+class CaptchaAssistSubmitBody(BaseModel):
+    clicks: list[dict[str, Any]] = Field(..., min_length=1)
+
+
+@app.get("/api/v1/admin/captcha-assist/pending")
+async def admin_captcha_assist_pending():
+    """List pending captcha assist sessions."""
+    rows = db.captcha_assist_list_pending()
+    return {"items": [_serialize_row(r) for r in rows]}
+
+
+@app.get("/api/v1/admin/captcha-assist/sessions/{session_id}/image")
+async def admin_captcha_assist_image(session_id: int):
+    """Fetch captcha assist session image."""
+    row = db.captcha_assist_get(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="浼氳瘽涓嶅瓨鍦?")
+    name = row.get("image_stored_name") or ""
+    path = safe_task_image_path(str(name))
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="鍥剧墖涓嶅瓨鍦?")
+    mt = mimetypes.guess_type(name)[0] or "image/jpeg"
+    return FileResponse(path, media_type=mt)
+
+
+@app.post("/api/v1/admin/captcha-assist/sessions/{session_id}/submit")
+async def admin_captcha_assist_submit(
+    session_id: int,
+    body: CaptchaAssistSubmitBody,
+):
+    clicks: list[dict[str, int]] = []
+    for c in body.clicks:
+        if not isinstance(c, dict):
+            continue
+        try:
+            x = int(float(c.get("x")))
+            y = int(float(c.get("y")))
+        except (TypeError, ValueError):
+            continue
+        clicks.append({"x": x, "y": y})
+    if not clicks:
+        raise HTTPException(status_code=400, detail="鍧愭爣鏃犳晥")
+    ok = db.captcha_assist_submit_clicks(session_id, clicks)
+    if not ok:
+        raise HTTPException(status_code=400, detail="鎻愪氦澶辫触锛堜細璇濅笉瀛樺湪鎴栧凡澶勭悊锛?")
+    return {"ok": True}
+
+
 @app.post("/api/v1/client/asin-clicks")
 async def client_asin_click(body: ClientAsinClickBody):
-    """客户端每次完成目标 ASIN 相关点击后调用：若无后台登记则自动创建目标 ASIN，再累加计数并写入明细。"""
+    """Record one target ASIN click from client."""
     db.upsert_device_heartbeat(body.device_id)
     norm = normalize_target_asin(body.asin)
     if not norm:
-        raise HTTPException(status_code=400, detail="ASIN 格式无效（需 10～16 位字母数字）")
+        raise HTTPException(status_code=400, detail="ASIN 鏍煎紡鏃犳晥锛堥渶 10锝?6 浣嶅瓧姣嶆暟瀛楋級")
     kw = (body.keyword or "").strip()
     if not kw:
-        raise HTTPException(status_code=400, detail="keyword 不能为空")
+        raise HTTPException(status_code=400, detail="keyword 涓嶈兘涓虹┖")
     out = db.increment_target_asin_click(norm, kw, body.device_id)
     if not out:
-        raise HTTPException(status_code=500, detail="记录点击失败")
+        raise HTTPException(status_code=500, detail="璁板綍鐐瑰嚮澶辫触")
     return {"ok": True, **out}
 
 
@@ -878,7 +1253,7 @@ async def client_random_keywords(num: int = Query(2, ge=1, le=100)):
 @app.get("/api/v1/client/tasks/next")
 async def client_tasks_next(
     device_id: str = Query(..., min_length=1),
-    task_type: Optional[str] = Query(None, description="仅领取指定类型，如 search_click"),
+    task_type: Optional[str] = Query(None, description="浠呴鍙栨寚瀹氱被鍨嬶紝濡?search_click"),
 ):
     db.upsert_device_heartbeat(device_id)
     pol = db.get_device_screenshot_upload_policy(device_id)
@@ -896,33 +1271,33 @@ async def client_task_append_screenshots(
     description: str = Form(default=""),
     image: UploadFile = File(...),
 ):
-    """过程截图：running 时按设备策略即时上传；failed_only 策略下也可在任务失败后补传队列中的图。"""
+    """Upload one running/failed task screenshot according to policy."""
     task = db.get_task_by_id(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="浠诲姟涓嶅瓨鍦?")
     if str(task.get("device_id") or "") != device_id.strip():
-        raise HTTPException(status_code=403, detail="设备不匹配")
+        raise HTTPException(status_code=403, detail="璁惧涓嶅尮閰?")
     policy = db.get_device_screenshot_upload_policy(device_id)
     st = task["status"]
     if policy == "none":
-        raise HTTPException(status_code=403, detail="设备策略为禁止上传截图")
+        raise HTTPException(status_code=403, detail="璁惧绛栫暐涓虹姝笂浼犳埅鍥?")
     if st == "running":
         if policy == "failed_only":
             raise HTTPException(
                 status_code=403,
-                detail="设备策略为仅失败任务上传截图：请在本地压缩暂存，任务失败结案后再传",
+                detail="设备策略为 failed_only 时，运行中请先本地暂存截图，任务失败结案后再补传。",
             )
     elif st == "failed":
         if policy not in ("all", "failed_only"):
-            raise HTTPException(status_code=403, detail="设备策略为禁止上传截图")
+            raise HTTPException(status_code=403, detail="璁惧绛栫暐涓虹姝笂浼犳埅鍥?")
     else:
-        raise HTTPException(status_code=400, detail="仅执行中或已失败任务可上传过程截图")
+        raise HTTPException(status_code=400, detail="浠呮墽琛屼腑鎴栧凡澶辫触浠诲姟鍙笂浼犺繃绋嬫埅鍥?")
     if not image.filename:
-        raise HTTPException(status_code=400, detail="缺少图片文件")
+        raise HTTPException(status_code=400, detail="缂哄皯鍥剧墖鏂囦欢")
     body = await image.read()
     max_mb = int(os.getenv("TASK_IMAGE_MAX_MB", "8"))
     if len(body) > max_mb * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="单张图片过大")
+        raise HTTPException(status_code=413, detail="鍗曞紶鍥剧墖杩囧ぇ")
     ext = Path(image.filename).suffix.lower() or ".bin"
     if ext not in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bin"):
         ext = ".bin"
@@ -943,28 +1318,28 @@ async def client_task_report(
     images: Optional[list[UploadFile]] = File(None),
     image_descriptions: Optional[str] = Form(
         default=None,
-        description='可选，与 images 顺序一致的说明 JSON 数组，如 ["搜索页","详情"]',
+        description="可选，与 images 顺序一致的说明 JSON 数组，例如 [\"search\",\"detail\"]",
     ),
 ):
     try:
         lines = json.loads(log_lines) if log_lines else []
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="log_lines 须为 JSON 字符串数组")
+        raise HTTPException(status_code=400, detail="log_lines 椤讳负 JSON 瀛楃涓叉暟缁?")
     if not isinstance(lines, list):
-        raise HTTPException(status_code=400, detail="log_lines 须为数组")
+        raise HTTPException(status_code=400, detail="log_lines 椤讳负鏁扮粍")
     lines = [str(x) for x in lines]
     task = db.get_task_by_id(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="浠诲姟涓嶅瓨鍦?")
     if task["status"] != "running":
-        raise HTTPException(status_code=400, detail="任务状态不可上报")
+        raise HTTPException(status_code=400, detail="浠诲姟鐘舵€佷笉鍙笂鎶?")
     if str(task.get("device_id") or "") != device_id.strip():
-        raise HTTPException(status_code=403, detail="设备不匹配")
+        raise HTTPException(status_code=403, detail="璁惧涓嶅尮閰?")
     policy = db.get_device_screenshot_upload_policy(device_id)
     parsed_preview = parse_task_report_footer(lines)
     imgs: list[UploadFile] = list(images or [])
     if policy == "none" and imgs:
-        raise HTTPException(status_code=400, detail="设备策略为禁止上传截图，结案请勿附带图片")
+        raise HTTPException(status_code=400, detail="璁惧绛栫暐涓虹姝笂浼犳埅鍥撅紝缁撴璇峰嬁闄勫甫鍥剧墖")
     if policy == "failed_only" and parsed_preview.success:
         imgs = []
     if lines:
@@ -974,9 +1349,9 @@ async def client_task_report(
         try:
             arr = json.loads(str(image_descriptions).strip())
         except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="image_descriptions 须为 JSON 数组字符串")
+            raise HTTPException(status_code=400, detail="image_descriptions 椤讳负 JSON 鏁扮粍瀛楃涓?")
         if not isinstance(arr, list):
-            raise HTTPException(status_code=400, detail="image_descriptions 须为数组")
+            raise HTTPException(status_code=400, detail="image_descriptions 椤讳负鏁扮粍")
         for x in arr:
             if x is None:
                 desc_list.append(None)
@@ -989,7 +1364,7 @@ async def client_task_report(
             continue
         body = await uf.read()
         if len(body) > max_mb * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="单张图片过大")
+            raise HTTPException(status_code=413, detail="鍗曞紶鍥剧墖杩囧ぇ")
         ext = Path(uf.filename).suffix.lower() or ".bin"
         if ext not in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bin"):
             ext = ".bin"
@@ -1001,7 +1376,7 @@ async def client_task_report(
         db.insert_task_image(task_id, stored, one_desc)
     ok, _ = db.finalize_task_from_report(task_id, lines)
     if not ok:
-        raise HTTPException(status_code=400, detail="无法结案任务")
+        raise HTTPException(status_code=400, detail="鏃犳硶缁撴浠诲姟")
     return {"ok": True}
 
 
@@ -1023,7 +1398,7 @@ async def spa_index():
     index = os.path.join(STATIC, "index.html")
     if not os.path.isfile(index):
         return {
-            "detail": "请先构建前端：cd admin && npm run build（输出到仓库根目录 static/，见 vite.config.ts）",
+            "detail": "请先构建前端：cd admin && npm run build",
         }
     return FileResponse(index)
 
@@ -1041,3 +1416,6 @@ async def spa_fallback(full_path: str):
     if os.path.isfile(index):
         return FileResponse(index)
     raise HTTPException(status_code=404, detail="Not found")
+
+
+

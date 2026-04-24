@@ -1,11 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
-import { fetchDeviceOptions, postBatchRegister } from '@/api/amzApi'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { fetchDeviceOptions, fetchRegisterCodePoolsStats, postBatchRegister } from '@/api/amzApi'
 import type { DeviceOption } from '@/types/amz'
 import { useUIStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
-
-const ta =
-  'w-full min-h-[200px] rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-mono'
 
 const inp =
   'w-full rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm'
@@ -13,28 +10,33 @@ const inp =
 export function RegisterTasksPage() {
   const { addToast } = useUIStore()
   const [devices, setDevices] = useState<DeviceOption[]>([])
-  const [raw, setRaw] = useState('')
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [mode, setMode] = useState<'manual' | 'smart'>('smart')
   const [counts, setCounts] = useState<Record<string, string>>({})
+  const [totalCount, setTotalCount] = useState('10')
+  const [bindEmail, setBindEmail] = useState(false)
   const [saveDataRecord, setSaveDataRecord] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [poolStats, setPoolStats] = useState<{
+    phone_available: number
+    email_available: number
+  } | null>(null)
+
+  const loadStats = useCallback(() => {
+    fetchRegisterCodePoolsStats()
+      .then((s) => setPoolStats({ phone_available: s.phone_available, email_available: s.email_available }))
+      .catch(() => setPoolStats(null))
+  }, [])
 
   useEffect(() => {
     fetchDeviceOptions().then((r) => setDevices(r.items || []))
   }, [])
 
+  useEffect(() => {
+    loadStats()
+  }, [loadStats])
+
   const selectedIds = useMemo(() => Object.keys(selected).filter((k) => selected[k]), [selected])
-  const phoneLines = useMemo(() => {
-    let n = 0
-    for (const line of raw.split(/\r?\n/)) {
-      const t = line.trim()
-      if (!t) continue
-      const first = t.split('\t')[0].split(',')[0].trim()
-      if (first) n++
-    }
-    return n
-  }, [raw])
 
   const toggle = (id: string) => setSelected((s) => ({ ...s, [id]: !s[id] }))
 
@@ -49,15 +51,12 @@ export function RegisterTasksPage() {
   const selectNoDevices = () => setSelected({})
 
   const submit = async () => {
-    if (!raw.trim()) {
-      addToast({ message: '请填写手机号，一行一个', type: 'error' })
-      return
-    }
     if (selectedIds.length === 0) {
       addToast({ message: '请至少选择一台设备', type: 'error' })
       return
     }
     const per_device_counts: Record<string, number> = {}
+    let nTasks = 0
     if (mode === 'manual') {
       let sum = 0
       for (const id of selectedIds) {
@@ -67,27 +66,52 @@ export function RegisterTasksPage() {
           sum += n
         }
       }
-      if (sum !== phoneLines) {
-        addToast({
-          message: `手动分配：各设备任务数之和须为 ${phoneLines}（当前 ${sum}，与手机号行数一致）`,
-          type: 'error',
-        })
+      if (sum <= 0) {
+        addToast({ message: '手动模式请为选中设备填写大于 0 的任务数', type: 'error' })
         return
       }
+      nTasks = sum
+    } else {
+      const total = parseInt(totalCount, 10) || 0
+      if (total <= 0) {
+        addToast({ message: '智能模式请填写总任务数', type: 'error' })
+        return
+      }
+      nTasks = total
     }
+
+    if (poolStats && nTasks > poolStats.phone_available) {
+      addToast({
+        message: `手机接码库可用仅 ${poolStats.phone_available} 条，不足以创建 ${nTasks} 个任务（请先导入接码库）`,
+        type: 'error',
+      })
+      return
+    }
+    if (bindEmail && poolStats && nTasks > poolStats.email_available) {
+      addToast({
+        message: `邮箱接码库可用仅 ${poolStats.email_available} 条，不足以绑定 ${nTasks} 个任务`,
+        type: 'error',
+      })
+      return
+    }
+
     setLoading(true)
     try {
       const r = await postBatchRegister({
         mode,
         device_ids: selectedIds,
         per_device_counts: mode === 'manual' ? per_device_counts : {},
-        raw_text: raw,
+        total_count: mode === 'smart' ? nTasks : 0,
+        bind_email: bindEmail,
         save_data_record: saveDataRecord,
       })
-      addToast({ message: `已创建 ${r.created} 条注册任务（用户名取自随机地址的姓名，密码已自动生成）`, type: 'success' })
-      setRaw('')
+      addToast({
+        message: `已创建 ${r.created} 条注册任务（手机号与接码链接来自接码库；亚马逊登录密码已按规则生成）`,
+        type: 'success',
+      })
+      loadStats()
     } catch {
-      addToast({ message: '创建失败（请确认地址库已导入、设备数与分配正确）', type: 'error' })
+      addToast({ message: '创建失败（请确认地址库、接码库条数与设备分配）', type: 'error' })
     } finally {
       setLoading(false)
     }
@@ -96,22 +120,23 @@ export function RegisterTasksPage() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">自动注册任务</h1>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">创建亚马逊注册任务</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          每行一个<strong>手机号</strong>。用户名从<strong>地址管理</strong>中随机抽取一条地址的<strong>姓名</strong>；密码由系统生成（10
-          位：含大写、小写、1 个特殊字符、多位数字）。选择设备后<strong>智能均分</strong>或<strong>手动</strong>指定每机任务数（须与手机号行数一致）。
+          手机号与<strong>手机接码链接</strong>从「资源管理 → 手机接码管理」按顺序各取一条（一次性）；用户名从地址库随机地址的姓名；亚马逊账号密码由系统生成（含数字、大小写，特殊字符仅{' '}
+          <span className="font-mono">.</span> 与 <span className="font-mono">@</span>）。可选绑定邮箱接码库一条（与任务一一对应）。
         </p>
+        {poolStats && (
+          <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+            接码库余量：手机 <strong>{poolStats.phone_available}</strong> 条
+            {bindEmail && (
+              <>
+                {' '}
+                · 邮箱 <strong>{poolStats.email_available}</strong> 条
+              </>
+            )}
+          </p>
+        )}
       </div>
-
-      <label className="block text-sm">
-        <span className="text-slate-600 dark:text-slate-400">手机号列表（当前 {phoneLines} 行）</span>
-        <textarea
-          className={cn(ta, 'mt-1')}
-          placeholder={'13800138000\n13900139000'}
-          value={raw}
-          onChange={(e) => setRaw(e.target.value)}
-        />
-      </label>
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -150,16 +175,36 @@ export function RegisterTasksPage() {
         </div>
       </div>
 
-      <div className="flex gap-4 text-sm">
+      <div className="flex gap-4 text-sm flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="radio" name="rmode" checked={mode === 'smart'} onChange={() => setMode('smart')} />
-          智能均分（按 N 条手机号均分到所选设备）
+          智能均分（填写总任务数，按设备均分；每条任务消耗手机接码库 1 条）
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="radio" name="rmode" checked={mode === 'manual'} onChange={() => setMode('manual')} />
           手动分配
         </label>
       </div>
+
+      {mode === 'smart' && (
+        <label className="block text-sm max-w-xs">
+          <span className="text-slate-600 dark:text-slate-400">总任务数</span>
+          <input
+            className={cn(inp, 'mt-1')}
+            type="number"
+            min={1}
+            value={totalCount}
+            onChange={(e) => setTotalCount(e.target.value)}
+          />
+        </label>
+      )}
+
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" checked={bindEmail} onChange={(e) => setBindEmail(e.target.checked)} />
+        <span>
+          绑定邮箱接码库（每个任务额外消耗邮箱库 1 条：邮箱、邮箱登录密码、邮箱接码链接写入任务参数）
+        </span>
+      </label>
 
       <label className="flex items-center gap-2 text-sm cursor-pointer">
         <input type="checkbox" checked={saveDataRecord} onChange={(e) => setSaveDataRecord(e.target.checked)} />
@@ -168,7 +213,7 @@ export function RegisterTasksPage() {
 
       {mode === 'manual' && (
         <div className="space-y-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-          <div className="text-xs text-slate-500">选中设备上各填任务条数，总和须等于 {phoneLines} 行手机号</div>
+          <div className="text-xs text-slate-500">为选中设备填写任务条数；总和即创建任务数（须不超过手机接码库可用条数）</div>
           {selectedIds.map((id) => (
             <div key={id} className="flex items-center gap-2 text-sm">
               <span className="font-mono text-xs w-40 truncate">{id}</span>
@@ -193,7 +238,10 @@ export function RegisterTasksPage() {
       >
         {loading ? '提交中…' : '批量创建'}
       </button>
-      <p className="text-xs text-slate-500">任务详情与密码可在「任务中心」查看（领取前为待执行状态）。</p>
+      <p className="text-xs text-slate-500">
+        请先在侧边栏「资源管理 → 手机接码管理」导入手机号与链接（邮箱则在「邮箱接码管理」）。任务详情与 <span className="font-mono">task_id</span> 可在「任务中心」查看；接码库列表会显示{' '}
+        <span className="font-mono">register_task_id</span> 关联。
+      </p>
     </div>
   )
 }

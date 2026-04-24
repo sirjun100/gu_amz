@@ -12,9 +12,14 @@ import type {
   AddressRow,
   TargetAsinRow,
   AsinClickRecordRow,
+  RegisterPhonePoolRow,
+  RegisterEmailPoolRow,
+  RegisterCodePoolsStats,
   AdminSettings,
   TaskSavedRecordRow,
   ScreenshotUploadPolicy,
+  AmazonAccountRow,
+  CaptchaAssistPendingItem,
 } from '@/types/amz'
 
 export type { MeResponse, PaginatedTasks, TaskCenterDetail, DeviceOption, AddressRow }
@@ -96,11 +101,80 @@ export function postBatchRegister(body: {
   mode: 'manual' | 'smart'
   device_ids: string[]
   per_device_counts: Record<string, number>
-  raw_text: string
+  /** 智能均分时必填：创建任务条数（每条消耗手机接码库 1 条；勾选绑定邮箱时再消耗邮箱库 1 条） */
+  total_count: number
+  /** 是否为每个任务绑定一条邮箱接码库记录 */
+  bind_email?: boolean
   /** 默认 true */
   save_data_record?: boolean
 }) {
   return post<{ ok: boolean; created: number }>('/admin/tasks/batch-register', body)
+}
+
+export function fetchRegisterCodePoolsStats() {
+  return get<RegisterCodePoolsStats>('/admin/register-code-pools/stats')
+}
+
+export function importRegisterPhonePool(text: string) {
+  return post<{ ok: boolean; imported: number }>('/admin/register-phone-pool/import', { text })
+}
+
+export function importRegisterEmailPool(text: string) {
+  return post<{ ok: boolean; imported: number }>('/admin/register-email-pool/import', { text })
+}
+
+export function fetchRegisterPhonePoolPage(page: number, perPage = 30, q?: string) {
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  return get<PaginatedRows<RegisterPhonePoolRow>>(`/admin/register-phone-pool?${qs}`)
+}
+
+export function deleteRegisterPhonePool(ids: number[]) {
+  return post<{ ok: boolean; deleted: number }>('/admin/register-phone-pool/delete', { ids })
+}
+
+export function clearRegisterPhonePool() {
+  return post<{ ok: boolean; deleted: number }>('/admin/register-phone-pool/clear')
+}
+
+export function fetchRegisterEmailPoolPage(page: number, perPage = 30, q?: string) {
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  return get<PaginatedRows<RegisterEmailPoolRow>>(`/admin/register-email-pool?${qs}`)
+}
+
+export function deleteRegisterEmailPool(ids: number[]) {
+  return post<{ ok: boolean; deleted: number }>('/admin/register-email-pool/delete', { ids })
+}
+
+export function clearRegisterEmailPool() {
+  return post<{ ok: boolean; deleted: number }>('/admin/register-email-pool/clear')
+}
+
+export function fetchAmazonAccountsPage(page: number, perPage = 30, q?: string) {
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  return get<PaginatedRows<AmazonAccountRow>>(`/admin/amazon-accounts?${qs}`)
+}
+
+export function deleteAmazonAccount(id: number) {
+  return del<{ ok: boolean }>(`/admin/amazon-accounts/${id}`)
+}
+
+export function deleteAmazonAccounts(ids: number[]) {
+  return post<{ ok: boolean; deleted: number }>('/admin/amazon-accounts/delete', { ids })
+}
+
+export function clearAmazonAccounts() {
+  return post<{ ok: boolean; deleted: number }>('/admin/amazon-accounts/clear')
+}
+
+export function fetchCaptchaAssistPending() {
+  return get<{ items: CaptchaAssistPendingItem[] }>('/admin/captcha-assist/pending')
+}
+
+export function postCaptchaAssistSubmit(sessionId: number, clicks: { x: number; y: number }[]) {
+  return post<{ ok: boolean }>(`/admin/captcha-assist/sessions/${sessionId}/submit`, { clicks })
 }
 
 export const fetchAdminSettings = () => get<AdminSettings>('/admin/settings')
