@@ -3,6 +3,7 @@ import {
   clearAmazonAccounts,
   deleteAmazonAccount,
   deleteAmazonAccounts,
+  fetchAmazonAccountTotpImageBlob,
   fetchAmazonAccountsPage,
   fetchTaskCenterDetail,
 } from '@/api/amzApi'
@@ -25,6 +26,15 @@ export function AmazonAccountsPage() {
   const [deleting, setDeleting] = useState(false)
   const [taskDetail, setTaskDetail] = useState<TaskCenterDetail | null>(null)
   const [taskLoadingId, setTaskLoadingId] = useState<number | null>(null)
+  const [totpImgLoadingId, setTotpImgLoadingId] = useState<number | null>(null)
+  const [totpImgUrl, setTotpImgUrl] = useState<string | null>(null)
+  const [totpImgTitle, setTotpImgTitle] = useState<string>('')
+
+  useEffect(() => {
+    return () => {
+      if (totpImgUrl) URL.revokeObjectURL(totpImgUrl)
+    }
+  }, [totpImgUrl])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -125,6 +135,27 @@ export function AmazonAccountsPage() {
     }
   }
 
+  const openTotpImage = async (row: AmazonAccountRow) => {
+    setTotpImgLoadingId(row.id)
+    try {
+      const blob = await fetchAmazonAccountTotpImageBlob(row.id)
+      const url = URL.createObjectURL(blob)
+      if (totpImgUrl) URL.revokeObjectURL(totpImgUrl)
+      setTotpImgUrl(url)
+      setTotpImgTitle(`账号ID ${row.id} / 手机 ${row.phone ?? '—'}`)
+    } catch {
+      addToast({ message: '加载TOTP图片失败', type: 'error' })
+    } finally {
+      setTotpImgLoadingId(null)
+    }
+  }
+
+  const closeTotpImage = () => {
+    if (totpImgUrl) URL.revokeObjectURL(totpImgUrl)
+    setTotpImgUrl(null)
+    setTotpImgTitle('')
+  }
+
   const renderStatus = (ok: boolean, okText: string, noText: string) => (
     <span className={cn('text-xs font-medium', ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-300')}>
       {ok ? okText : noText}
@@ -132,7 +163,7 @@ export function AmazonAccountsPage() {
   )
 
   return (
-    <div className="space-y-4 max-w-7xl">
+    <div className="space-y-4 w-full">
       <div>
         <h1 className="text-lg font-semibold text-slate-900 dark:text-white">亚马逊账号管理</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -200,6 +231,7 @@ export function AmazonAccountsPage() {
               <th className="px-2 py-2 text-left">环境</th>
               <th className="px-2 py-2 text-left">地址状态</th>
               <th className="px-2 py-2 text-left">TOTP状态</th>
+              <th className="px-2 py-2 text-left">TOTP图片</th>
               <th className="px-2 py-2 text-left">TOTP动态码</th>
               <th className="px-2 py-2 text-left">更新时间</th>
               <th className="px-2 py-2 text-left">操作</th>
@@ -208,13 +240,13 @@ export function AmazonAccountsPage() {
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {loading ? (
               <tr>
-                <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
                   加载中…
                 </td>
               </tr>
             ) : data.items.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
                   暂无记录
                 </td>
               </tr>
@@ -246,6 +278,20 @@ export function AmazonAccountsPage() {
                     </td>
                     <td className="px-2 py-1.5">{renderStatus(addrOk, '已设置地址', '未设置地址')}</td>
                     <td className="px-2 py-1.5">{renderStatus(totpOk, '已设置TOTP', '未设置TOTP')}</td>
+                    <td className="px-2 py-1.5">
+                      {row.totp_image_stored_name ? (
+                        <button
+                          type="button"
+                          onClick={() => openTotpImage(row)}
+                          className="px-2 py-1 rounded text-xs border border-slate-200 dark:border-slate-600"
+                          disabled={totpImgLoadingId === row.id}
+                        >
+                          {totpImgLoadingId === row.id ? '加载中...' : '查看图片'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5 font-mono text-base font-semibold text-blue-700 dark:text-blue-300">
                       {row.totp_code_now ?? '—'}
                     </td>
@@ -300,6 +346,29 @@ export function AmazonAccountsPage() {
             <p>设备：{taskDetail.task.device_id ?? '—'}</p>
             <p>创建时间：{taskDetail.task.created_at ?? '—'}</p>
             <p>失败原因：{taskDetail.task.failure_detail ?? '—'}</p>
+          </div>
+        </div>
+      )}
+
+      {totpImgUrl && (
+        <div className="fixed inset-0 z-50 bg-black/75 p-4 flex items-center justify-center" onClick={closeTotpImage}>
+          <div
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-w-5xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">{totpImgTitle}</h3>
+              <button
+                type="button"
+                onClick={closeTotpImage}
+                className="px-2 py-1 rounded text-xs border border-slate-200 dark:border-slate-600"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 flex items-center justify-center max-h-[calc(90vh-48px)] overflow-auto">
+              <img src={totpImgUrl} alt="totp" className="max-w-full max-h-[78vh] object-contain rounded" />
+            </div>
           </div>
         </div>
       )}

@@ -1240,12 +1240,27 @@ class Database:
                 f.write(image_bytes)
         except OSError:
             return {"ok": False, "error": "保存截图失败"}
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE amazon_accounts
+                SET totp_image_stored_name = %s
+                WHERE id = %s
+                """,
+                (stored, account_id),
+            )
+
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE amazon_accounts
+                SET totp_image_stored_name = %s
+                WHERE id = %s
+                """,
+                (stored, account_id),
+            )
         secret = decode_totp_secret_from_image_bytes(image_bytes)
         if not secret:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
             return {"ok": False, "error": "未识别到 TOTP 二维码（需含 otpauth），请重截清晰全屏"}
         code = totp_current_code(secret)
         with self._cursor() as (conn, cur):
@@ -1370,12 +1385,17 @@ class Database:
         except OSError:
             return {"ok": False, "error": "保存截图失败"}
 
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE amazon_accounts
+                SET totp_image_stored_name = %s
+                WHERE id = %s
+                """,
+                (stored, account_id),
+            )
         secret = decode_totp_secret_from_image_bytes(image_bytes)
         if not secret:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
             return {"ok": False, "error": "未识别到TOTP二维码，请重新截图"}
 
         code = totp_current_code(secret)
@@ -1439,6 +1459,13 @@ class Database:
             )
             rows = cur.fetchall()
         return total, rows
+
+    def get_amazon_account_by_id(self, account_id: int):
+        if account_id <= 0:
+            return None
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM amazon_accounts WHERE id = %s", (account_id,))
+            return cur.fetchone()
 
     def delete_amazon_account_by_id(self, account_id: int) -> bool:
         if account_id <= 0:

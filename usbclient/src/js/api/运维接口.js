@@ -289,6 +289,8 @@ var 运维接口 = {
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/totp-code";
     var params = { phone: ph, device_id: AMZ_CONFIG.deviceId };
     var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    logd('获取亚马逊账号TOTP码');
+    logd(res);
     if (res == null || res === "") {
       return null;
     }

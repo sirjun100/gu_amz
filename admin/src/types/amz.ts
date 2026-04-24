@@ -105,6 +105,7 @@ export type AmazonAccountRow = {
   address_set_at: string | null
   totp_set_at: string | null
   totp_image_stored_name: string | null
+  totp_image_url?: string | null
   totp_code_now: string | null
   address_configured?: boolean
   totp_configured?: boolean

@@ -147,7 +147,7 @@ export function RegisterPhonePoolPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 w-full">
       <div>
         <h1 className="text-lg font-semibold text-slate-900 dark:text-white">手机接码管理</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">

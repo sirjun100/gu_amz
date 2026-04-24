@@ -169,6 +169,16 @@ export function clearAmazonAccounts() {
   return post<{ ok: boolean; deleted: number }>('/admin/amazon-accounts/clear')
 }
 
+export async function fetchAmazonAccountTotpImageBlob(accountId: number) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${getApiBase()}/admin/amazon-accounts/${accountId}/totp-image`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.blob()
+}
+
 export function fetchCaptchaAssistPending() {
   return get<{ items: CaptchaAssistPendingItem[] }>('/admin/captcha-assist/pending')
 }

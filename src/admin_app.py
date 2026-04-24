@@ -1071,6 +1071,7 @@ async def admin_amazon_accounts_list(
         d = _serialize_row(r)
         sec = r.get("totp_secret")
         d["totp_code_now"] = totp_current_code(str(sec)) if sec else None
+        d["totp_image_url"] = f"/api/v1/admin/amazon-accounts/{int(r['id'])}/totp-image"
         if "env_name" not in d and "environment" in d:
             d["env_name"] = d.get("environment")
         d["totp_configured"] = bool(r.get("totp_set_at")) or bool(sec)
@@ -1085,6 +1086,21 @@ async def admin_amazon_accounts_list(
         total=total,
         total_pages=total_pages,
     )
+
+
+@app.get("/api/v1/admin/amazon-accounts/{account_id}/totp-image")
+async def admin_amazon_account_totp_image(user: CurrentUser, account_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    row = db.get_amazon_account_by_id(account_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="璁板綍涓嶅瓨鍦?")
+    stored_name = row.get("totp_image_stored_name")
+    path = safe_task_image_path(str(stored_name) if stored_name else None)
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="TOTP鍥剧墖涓嶅瓨鍦?")
+    media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type)
 
 
 @app.delete("/api/v1/admin/amazon-accounts/{account_id}")
