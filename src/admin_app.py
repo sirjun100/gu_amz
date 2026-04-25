@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import uuid
@@ -28,6 +29,7 @@ STATIC = STATIC_WEB_DIR
 
 JWT_ALG = "HS256"
 JWT_EXPIRE_DAYS = 7
+LOGGER = logging.getLogger("amz.admin")
 
 
 def _jwt_signing_key() -> bytes:
@@ -1034,6 +1036,14 @@ async def client_amazon_accounts_totp_qr(
         phone, raw, image.filename or "totp.png"
     )
     if not out.get("ok"):
+        LOGGER.warning(
+            "totp-qr failed phone=%s device=%s file=%s size=%s error=%s",
+            phone,
+            device_id,
+            image.filename or "totp.png",
+            len(raw),
+            out.get("error") or "unknown",
+        )
         raise HTTPException(status_code=400, detail=out.get("error") or "澶勭悊澶辫触")
     return {
         "ok": True,

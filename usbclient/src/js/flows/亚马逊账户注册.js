@@ -45,15 +45,15 @@ function 亚马逊账户注册(task) {
   try {
     日志收集器.添加("[注册亚马逊] 开始 task_id=" + tid);
 
-    // 日志收集器.添加("[注册亚马逊] 任务开始先回到HOME界面");
-    // if (!返回到HOME界面()){
-    //   throw new Error("步骤0 后失败：无法返回主屏幕");
-    // }
-    //
-    // 日志收集器.添加("[注册亚马逊] 步骤1/5 打开 AMG 并选择环境");
-    // if (!打开AMG并选择环境(task)) {
-    //   throw new Error("步骤1 失败：打开 AMG 并选择环境");
-    // }
+    日志收集器.添加("[注册亚马逊] 任务开始先回到HOME界面");
+    if (!返回到HOME界面()){
+      throw new Error("步骤0 后失败：无法返回主屏幕");
+    }
+
+    日志收集器.添加("[注册亚马逊] 步骤1/5 打开 AMG 并选择环境");
+    if (!打开AMG并选择环境(task)) {
+      throw new Error("步骤1 失败：打开 AMG 并选择环境");
+    }
 
     日志收集器.添加("[注册亚马逊] 步骤1 完成；返回桌面");
     if (!返回到HOME界面()) {
@@ -143,7 +143,6 @@ function 设置默认地址(task){
 
   sleep(随机区间(3000, 5000));
 
-
   日志收集器.添加("点击默认地址复选框");
   var 设置为默认地址复选框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Switch' and @index=0]").getOneNodeInfo(5000);
   if(!设置为默认地址复选框){
@@ -183,24 +182,19 @@ function 设置二步验证(task) {
   var 手机接码网址 = String(p.sms_link != null ? p.sms_link : "").trim();
   var _phone = String(p.phone != null ? p.phone : "").trim();
 
-  日志收集器.添加("找【Yor Account】图片并点击");
-  var 账号设置图标 = undefined;
-  for(let i=0;i<3;i++){
-    sleep(随机区间(5000, 8000));
-    账号设置图标 = 找图("账号设置图标.png");
-    if (账号设置图标) {
-      break;
-    }
-    向下滑一次();
+  向下滑一次();
+  sleep(随机区间(3000, 5000));
 
-  }
+  var 账号设置图标 = name("Your Account").getOneNodeInfo(5000);
+
+  //Your Account
   if(!账号设置图标){
     日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到设置账号设置按钮");
     throw new Error("没有找到设置账号设置按钮");
   }
-  clickPoint(账号设置图标.x,账号设置图标.y);
+  //clickPoint(账号设置图标.x,账号设置图标.y);
+  账号设置图标.clickCenter();
   sleep(随机区间(8000, 12000));
-
 
   日志收集器.添加("找【Login & security】图片并点击");
   var 登录与安全 = undefined;
@@ -287,22 +281,9 @@ function 设置二步验证(task) {
     }
     日志收集器.添加("上传结果 " + 上传结果日志);
 
-    var ywei = 运维接口.获取亚马逊账号TOTP码(_phone);
-    var 拉取结果日志 = "";
-    try {
-      拉取结果日志 = JSON.stringify(ywei);
-    } catch (e1) {
-      拉取结果日志 = String(ywei);
-    }
-    日志收集器.添加("获取TOTP结果 " + 拉取结果日志);
-
     file.deleteAllFile(totp截图路径);
     if (totp上传结果 && totp上传结果.totp_code) {
       OTP验证码 = String(totp上传结果.totp_code);
-      break;
-    }
-    if (ywei && ywei.totp_code) {
-      OTP验证码 = String(ywei.totp_code);
       break;
     }
     sleep(1000);
@@ -324,6 +305,34 @@ function 设置二步验证(task) {
   验证OTP并且继续按钮 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=5 and @label='Verify OTP and continue']").getOneNodeInfo(5000);
   验证OTP并且继续按钮.clickRandom();
   sleep(随机区间(8000, 14000));
+
+  日志收集器.添加("提交验证码-再次手机验证");
+  var 手机验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
+  if(手机验证码输入框){
+    日志收集器.添加("获取验证码->"+手机接码网址);
+    var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
+    if (!验证码 || String(验证码).length !== 6) {
+      日志收集器.添加("[注册亚马逊-开始注册] 手机短信超时或无效");
+      throw new Error("手机短信验证码超时或无效");
+    }
+
+    手机验证码输入框.clickRandom();
+    sleep(随机区间(1000, 3000));
+    逐字输入(验证码);
+    sleep(随机区间(1000, 3000));
+
+    日志收集器.添加("验证码->"+验证码);
+    var 提交验证码按钮 = name("Submit code").getOneNodeInfo(5000);
+    提交验证码按钮.clickRandom();
+    sleep(随机区间(8000, 14000));
+  }
+
+  日志收集器.添加("可能跳继续按钮，检测一下，检测到就点击");
+  var 继续按钮 = xpath('//node[@type=\'Application\']/node[@type=\'Window\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Button\' and @index=5 and @label=\'Continue\']').getOneNodeInfo(5000);
+  if(继续按钮){
+    继续按钮.clickRandom();
+    sleep(随机区间(8000, 14000));
+  }
 
   日志收集器.添加("最后的设置，开启二步验证-勾选复选框");
   var 不在此浏览器验证OTP的复选框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0 and @label='Amazon Two-Step Verification']").getOneNodeInfo(5000);
@@ -401,7 +410,7 @@ function 开始注册(task) {
   }else{
     clickPoint(个人中心注册按钮.x, 个人中心注册按钮.y);
   }
-  sleep(随机区间(9000, 15000));
+  sleep(随机区间(15000, 20000));
 
   日志收集器.添加("开始收入手机号="+手机号码)
   var 注册页面识别输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=2 and @label='Enter mobile number or email']").getOneNodeInfo(5000);
@@ -430,7 +439,7 @@ function 开始注册(task) {
     throw new Error("没找到 [创建一个账号按钮]");
   }
   创建一个账号按钮.clickRandom();
-  sleep(随机区间(3000, 5000));
+  sleep(随机区间(8000, 12000));
 
   日志收集器.添加("输入名字->"+名字)
   var 名字输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=10]").getOneNodeInfo(5000);
@@ -635,14 +644,8 @@ function 打开AMG并选择环境(task) {
         日志收集器.添加("[注册亚马逊] 重命名输入框没找到");
         return false;
       }
-
       for (var bi = 0; bi < 30; bi++) {
-        var result = ioHIDEvent("0x07", "0x2A", 0.1);
-        if (result) {
-          日志收集器.添加("执行退格键");
-        }else{
-          logd("回退失败");
-        }
+        ioHIDEvent("0x07", "0x2A", 0.1);
       }
 
       inputText(环境名字, 1000);

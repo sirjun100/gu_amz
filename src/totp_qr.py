@@ -19,18 +19,49 @@ def decode_totp_secret_from_image_bytes(raw: bytes) -> str | None:
     except ImportError:
         return None
     try:
-        img = Image.open(io.BytesIO(raw))
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-        for sym in pyzbar_decode(img):
-            data = sym.data.decode("utf-8", errors="replace").strip()
-            if not data.startswith("otpauth://"):
+        def _try_extract(img_obj):
+            for sym in pyzbar_decode(img_obj):
+                data = sym.data.decode("utf-8", errors="replace").strip()
+                if not data:
+                    continue
+                sec = extract_secret_from_otpauth_uri(data)
+                if sec and str(sec).strip():
+                    return str(sec).strip()
+            return None
+
+        src = Image.open(io.BytesIO(raw))
+        if src.mode not in ("RGB", "L"):
+            src = src.convert("RGB")
+
+        # 多轮尝试：原图、灰度、二值化、放大后再识别，降低因截图缩放/模糊导致的漏识别。
+        candidates = [src]
+        try:
+            gray = src.convert("L")
+            candidates.append(gray)
+            for th in (110, 128, 145, 165):
+                bw = gray.point(lambda p, t=th: 255 if p > t else 0, mode="1")
+                candidates.append(bw.convert("L"))
+        except Exception:
+            pass
+        try:
+            from PIL import ImageOps
+
+            candidates.append(ImageOps.autocontrast(src.convert("L")))
+        except Exception:
+            pass
+
+        for base in list(candidates):
+            sec0 = _try_extract(base)
+            if sec0:
+                return sec0
+            w, h = base.size
+            if w <= 0 or h <= 0:
                 continue
-            u = urlparse(data)
-            qs = parse_qs(u.query)
-            sec = (qs.get("secret") or [None])[0]
-            if sec and str(sec).strip():
-                return str(sec).strip()
+            for scale in (2, 3):
+                up = base.resize((w * scale, h * scale), Image.NEAREST)
+                sec = _try_extract(up)
+                if sec:
+                    return sec
         return None
     except Exception:
         return None
