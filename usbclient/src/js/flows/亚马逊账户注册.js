@@ -46,35 +46,33 @@ function 亚马逊账户注册(task) {
     日志收集器.添加("[注册亚马逊] 开始 task_id=" + tid);
 
     日志收集器.添加("[注册亚马逊] 任务开始先回到HOME界面");
-    if (!返回到HOME界面()){
-      throw new Error("步骤0 后失败：无法返回主屏幕");
-    }
+    亚马逊账户注册_返回到HOME界面()
 
     日志收集器.添加("[注册亚马逊] 步骤1/5 打开 AMG 并选择环境");
-    if (!打开AMG并选择环境(task)) {
+    if (!亚马逊账户注册_打开AMG并选择环境(task)) {
       throw new Error("步骤1 失败：打开 AMG 并选择环境");
     }
 
     日志收集器.添加("[注册亚马逊] 步骤1 完成；返回桌面");
-    if (!返回到HOME界面()) {
+    if (!亚马逊账户注册_返回到HOME界面()) {
       throw new Error("步骤1 后失败：无法返回主屏幕");
     }
     日志收集器.添加("[注册亚马逊] 步骤2/5 打开 亚马逊APP");
-    if (!打开亚马逊APP()) {
+    if (!亚马逊账户注册_打开亚马逊APP()) {
       throw new Error("步骤2 失败：打开 亚马逊APP");
     }
     日志收集器.添加("[注册亚马逊] 步骤3/5 执行注册流程");
-    开始注册(task);
+    亚马逊账户注册_开始注册(task);
 
-    日志收集器.添加("[注册亚马逊] 步骤4/5 设置二步验证");
-    设置二步验证(task);
+    日志收集器.添加("[注册亚马逊] 步骤4/5 亚马逊账户注册_设置二步验证");
+    亚马逊账户注册_设置二步验证(task);
 
-    日志收集器.添加("[注册亚马逊] 步骤5/5 设置默认地址");
-    设置默认地址(task);
+    日志收集器.添加("[注册亚马逊] 步骤5/5 亚马逊账户注册_设置默认地址");
+    亚马逊账户注册_设置默认地址(task);
     日志收集器.添加("[注册亚马逊] 全部步骤完成 task_id=" + tid);
   } finally {
     try {
-      appKillByBundleIdEx(AMZ_CONFIG.bundleIdChrome);
+      appKillByBundleIdEx("com.amazon.Amazon");
       logd("[注册亚马逊] 已尝试关闭");
     } catch (eKill) {
       logw("[注册亚马逊] 关闭 Chrome: " + eKill);
@@ -83,11 +81,11 @@ function 亚马逊账户注册(task) {
 }
 
 
-function 设置默认地址(task){
+function 亚马逊账户注册_设置默认地址(task){
   var p = (task != null && task.params) || {};
   var 地址1 = String(p.address_snapshot.address_line1 != null ? p.address_snapshot.address_line1 : "1355 COUNTRY OAKS LN").trim();
   var _phone = String(p.phone != null ? p.phone : "").trim();
-  地址1 = 地址1.substring(0, 15);
+  地址1 = 地址1.substring(0, 10);
 
   //地址按钮标志.png
   日志收集器.添加("找地址菜单【Your Addresses】并点击");
@@ -101,7 +99,7 @@ function 设置默认地址(task){
     向下滑一次();
   }
   if(!亚马逊地址菜单){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[添加一个新地址]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[添加一个新地址]");
     throw new Error("没有找到添加一个新地址");
   }
   clickPoint(亚马逊地址菜单.x,亚马逊地址菜单.y);
@@ -111,7 +109,7 @@ function 设置默认地址(task){
   日志收集器.添加("点击添加一个新地址");
   var 添加一个新地址 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Link']/node[@type='Link']/node[@type='StaticText' and @index=0 and @label='Add a new address']").getOneNodeInfo(5000);
   if(!添加一个新地址){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[添加一个新地址]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[添加一个新地址]");
     throw new Error("没有找到[添加一个新地址]");
   }
   添加一个新地址.clickRandom();
@@ -124,7 +122,7 @@ function 设置默认地址(task){
   //街道地址输入框.png
   var 街道地址输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=16]").getOneNodeInfo(5000);
   if(!街道地址输入框){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[街道地址输入框]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[街道地址输入框]");
     throw new Error("没有找到[街道地址输入框]");
   }
   街道地址输入框.clickRandom();
@@ -136,7 +134,7 @@ function 设置默认地址(task){
   日志收集器.添加("点击联想");
   var 街道地址联想 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=20]").getOneNodeInfo(5000);
   if(!街道地址联想){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[街道地址联想]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[街道地址联想]");
     throw new Error("没有找到[街道地址联想]");
   }
   街道地址联想.clickRandom();
@@ -146,7 +144,7 @@ function 设置默认地址(task){
   日志收集器.添加("点击默认地址复选框");
   var 设置为默认地址复选框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Switch' and @index=0]").getOneNodeInfo(5000);
   if(!设置为默认地址复选框){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[设置为默认地址复选框]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[设置为默认地址复选框]");
     throw new Error("没有找到[设置为默认地址复选框]");
   }
   设置为默认地址复选框.clickRandom();
@@ -157,7 +155,7 @@ function 设置默认地址(task){
   日志收集器.添加("点击添加地址按钮");
   var 添加地址按钮 = name("Add address").getOneNodeInfo(5000);
   if(!添加地址按钮){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[添加地址按钮]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[添加地址按钮]");
     throw new Error("没有找到[添加地址按钮]");
   }
   添加地址按钮.clickRandom();
@@ -167,7 +165,7 @@ function 设置默认地址(task){
   //地址已保存图标.png
   var 地址已保存图标 = name("Address saved").getOneNodeInfo(5000);
   if(!地址已保存图标){
-    日志收集器.添加("[注册亚马逊-设置默认地址] 没有找到[地址已保存图标]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置默认地址] 没有找到[地址已保存图标]");
     throw new Error("没有找到[地址已保存图标]");
   }
   地址已保存图标.clickRandom();
@@ -177,7 +175,7 @@ function 设置默认地址(task){
 
 }
 
-function 设置二步验证(task) {
+function 亚马逊账户注册_设置二步验证(task) {
   var p = (task != null && task.params) || {};
   var 手机接码网址 = String(p.sms_link != null ? p.sms_link : "").trim();
   var _phone = String(p.phone != null ? p.phone : "").trim();
@@ -189,7 +187,7 @@ function 设置二步验证(task) {
 
   //Your Account
   if(!账号设置图标){
-    日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到设置账号设置按钮");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到设置账号设置按钮");
     throw new Error("没有找到设置账号设置按钮");
   }
   //clickPoint(账号设置图标.x,账号设置图标.y);
@@ -213,7 +211,7 @@ function 设置二步验证(task) {
 
   }
   if(!登录与安全){
-    日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到账号与安全按钮");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到账号与安全按钮");
     throw new Error("没有找到账号与安全按钮");
   }
   clickPoint(登录与安全.x,登录与安全.y);
@@ -230,7 +228,7 @@ function 设置二步验证(task) {
     向下滑一次();
   }
   if(!开启二步验证按钮){
-    日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到开启二步验证按钮");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到开启二步验证按钮");
     throw new Error("没有找到开启二步验证按钮");
   }
   clickPoint(开启二步验证按钮.x,开启二步验证按钮.y);
@@ -257,7 +255,7 @@ function 设置二步验证(task) {
 
   var 验证OTP并且继续按钮 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=5 and @label='Verify OTP and continue']").getOneNodeInfo(5000);
   if(!验证OTP并且继续按钮){
-    日志收集器.添加("[注册亚马逊-设置二步验证] 没有找到[Verify OTP and continue]");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到[Verify OTP and continue]");
     throw new Error("Verify OTP and continue");
   }
 
@@ -312,7 +310,7 @@ function 设置二步验证(task) {
     日志收集器.添加("获取验证码->"+手机接码网址);
     var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
     if (!验证码 || String(验证码).length !== 6) {
-      日志收集器.添加("[注册亚马逊-开始注册] 手机短信超时或无效");
+      日志收集器.添加("[注册亚马逊-亚马逊账户注册_开始注册] 手机短信超时或无效");
       throw new Error("手机短信验证码超时或无效");
     }
 
@@ -368,7 +366,7 @@ function 设置二步验证(task) {
 /**
  * @param {object} task 含 params.keyword、params.res_folder_name；可选 params.target_asin / params.asin 用于上报统计
  */
-function 开始注册(task) {
+function 亚马逊账户注册_开始注册(task) {
   var p = (task != null && task.params) || {};
 
   var 手机号码 = String(p.phone != null ? p.phone : "").trim();
@@ -554,7 +552,7 @@ function 开始注册(task) {
   日志收集器.添加("获取验证码->"+手机接码网址);
   var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
   if (!验证码 || String(验证码).length !== 6) {
-    日志收集器.添加("[注册亚马逊-开始注册] 手机短信超时或无效");
+    日志收集器.添加("[注册亚马逊-亚马逊账户注册_开始注册] 手机短信超时或无效");
     throw new Error("手机短信验证码超时或无效");
   }
   日志收集器.添加("验证码->"+验证码);
@@ -581,7 +579,7 @@ function 开始注册(task) {
   运维接口.亚马逊账号上报引导(task.id);
 }
 
-function 打开AMG并选择环境(task) {
+function 亚马逊账户注册_打开AMG并选择环境(task) {
   var p = (task != null && task.params) || {};
   var 环境名字 = String(p.env_name != null ? p.env_name : "").trim();
   日志收集器.添加("环境名字->"+环境名字);
@@ -668,15 +666,12 @@ function 打开AMG并选择环境(task) {
       break;
     }
     sleep(2000);
-    if (!返回到HOME界面()) {
-      日志收集器.添加("[注册亚马逊] 步骤1 回桌面失败");
-      return false;
-    }
+
   }
   return 选择环境状态;
 }
 
-function 打开亚马逊APP() {
+function 亚马逊账户注册_打开亚马逊APP() {
   var launched = false;
   var i = 0;
   for (i = 0; i < 3; i++) {
@@ -738,17 +733,21 @@ function 打开亚马逊APP() {
 
 }
 
-function 返回到HOME界面() {
+function 亚马逊账户注册_返回到HOME界面() {
   var FLAG = false;
   var i = 0;
   for (i = 0; i < 3; i++) {
-    var success = agentEvent.pressKey("home");
+    startEnv();
+    sleep(3000);
+    var success = home(); //agentEvent.pressKey("home");
+    日志收集器.添加("[亚马逊账户注册_返回到HOME界面，状态："+success+"] 被点击，等待8秒");
+    sleep(8000);
     if (success) {
       FLAG = true;
-      logd("[注册亚马逊] Home 键成功");
+      日志收集器.添加("[亚马逊账户注册_返回到HOME界面] Home 键成功");
       break;
     }
-    loge("[注册亚马逊] Home 键失败 " + (i + 1));
+    日志收集器.添加("[亚马逊账户注册_返回到HOME界面] Home 键失败 " + (i + 1));
   }
   return FLAG;
 }
