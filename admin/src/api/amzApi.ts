@@ -12,6 +12,7 @@ import type {
   AddressRow,
   TargetAsinRow,
   AsinClickRecordRow,
+  AsinKeywordClickStatRow,
   RegisterPhonePoolRow,
   RegisterEmailPoolRow,
   RegisterCodePoolsStats,
@@ -245,11 +246,45 @@ export function deleteTargetAsin(id: number) {
   return del<{ ok: boolean }>(`/admin/target-asins/${id}`)
 }
 
-export function fetchAsinClickRecordsPage(page: number, perPage = 40, q?: string, asin?: string) {
+export function fetchAsinClickRecordsPage(params: {
+  page: number
+  perPage?: number
+  q?: string
+  asin?: string
+  keyword?: string
+  start_date?: string
+  end_date?: string
+}) {
+  const { page, perPage = 40, q, asin, keyword, start_date, end_date } = params
   const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
   if (q) qs.set('q', q)
   if (asin) qs.set('asin', asin)
+  if (keyword) qs.set('keyword', keyword)
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
   return get<PaginatedRows<AsinClickRecordRow>>(`/admin/asin-click-records?${qs}`)
+}
+
+export function fetchAsinClickRecordKeywords(start_date?: string, end_date?: string) {
+  const qs = new URLSearchParams()
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<{ items: string[] }>(`/admin/asin-click-record-keywords${qs.toString() ? `?${qs}` : ''}`)
+}
+
+export function fetchAsinKeywordClickStatsPage(params: {
+  page: number
+  perPage?: number
+  keyword?: string
+  start_date?: string
+  end_date?: string
+}) {
+  const { page, perPage = 40, keyword, start_date, end_date } = params
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (keyword) qs.set('keyword', keyword)
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<PaginatedRows<AsinKeywordClickStatRow>>(`/admin/asin-keyword-click-stats?${qs}`)
 }
 
 export async function importAddressesXlsx(file: File) {

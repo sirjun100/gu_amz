@@ -7,7 +7,7 @@ import logging
 import mimetypes
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -20,7 +20,13 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .db import db, normalize_target_asin, parse_task_params
+from .db import (
+    db,
+    normalize_target_asin,
+    ny_day_range_utc_bounds,
+    ny_today_date,
+    parse_task_params,
+)
 from .totp_qr import totp_current_code
 from .task_report_parse import parse_task_report_footer
 from .paths import STATIC_WEB_DIR, TASK_IMAGE_DIR, ensure_data_dir, safe_task_image_path
@@ -214,9 +220,25 @@ class TaskReportParsePreviewResponse(BaseModel):
 
 
 def _serialize_row(row: dict[str, Any]) -> dict[str, Any]:
+    from zoneinfo import ZoneInfo
+
+    ny_tz = ZoneInfo("America/New_York")
+
+    def _datetime_to_ny_iso(v: datetime) -> str:
+        # DB returns naive datetime for TIMESTAMP in current session timezone.
+        # DB session is forced to UTC in db._mysql_params(init_command),
+        # so naive values here are treated as UTC and converted to New York.
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+        return v.astimezone(ny_tz).isoformat()
+
     out = {}
     for k, v in row.items():
-        if hasattr(v, "isoformat"):
+        if isinstance(v, datetime):
+            out[k] = _datetime_to_ny_iso(v) if v is not None else None
+        elif hasattr(v, "isoformat"):
             out[k] = v.isoformat() if v is not None else None
         else:
             out[k] = v
@@ -288,6 +310,41 @@ def _distribute_total(total: int, n: int) -> list[int]:
 
 
 CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
+
+
+def _parse_ymd(value: str | None, field_name: str) -> date | None:
+    s = (value or "").strip()
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{field_name} 格式错误，需 YYYY-MM-DD")
+
+
+def _resolve_ny_day_range(
+    start_date_s: str | None,
+    end_date_s: str | None,
+    default_last_days: int | None = None,
+) -> tuple[date | None, date | None, datetime | None, datetime | None]:
+    start_day = _parse_ymd(start_date_s, "start_date")
+    end_day = _parse_ymd(end_date_s, "end_date")
+    if start_day is None and end_day is None:
+        if default_last_days is None:
+            return None, None, None, None
+        end_day = ny_today_date()
+        start_day = end_day - timedelta(days=max(0, int(default_last_days) - 1))
+    elif start_day is None:
+        start_day = end_day
+    elif end_day is None:
+        end_day = start_day
+
+    if start_day is None or end_day is None:
+        return None, None, None, None
+    if start_day > end_day:
+        raise HTTPException(status_code=400, detail="start_date 不能大于 end_date")
+    start_utc, end_utc = ny_day_range_utc_bounds(start_day, end_day)
+    return start_day, end_day, start_utc, end_utc
 
 
 def _xlsx_row_to_address(row) -> dict[str, Any] | None:
@@ -838,10 +895,47 @@ async def admin_asin_click_records_list(
     per_page: int = Query(40, ge=1, le=100),
     q: Optional[str] = None,
     asin: Optional[str] = Query(None, description="鎸?ASIN 绮剧‘绛涢€夛紙涓庣洰鏍?ASIN 琛ㄤ竴鑷寸殑澶у啓瑙勮寖褰㈠紡锛?"),
+    keyword: Optional[str] = Query(None, description="按关键词精确筛选"),
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
 ):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
-    total, rows = db.list_asin_click_records_paginated(page, per_page, q, asin)
+    _, _, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=None)
+    total, rows = db.list_asin_click_records_paginated(page, per_page, q, asin, keyword, start_utc, end_utc)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.get("/api/v1/admin/asin-click-record-keywords")
+async def admin_asin_click_record_keywords(
+    user: CurrentUser,
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    _, _, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=None)
+    items = db.list_asin_click_record_keywords(start_utc, end_utc)
+    return {"items": items}
+
+
+@app.get("/api/v1/admin/asin-keyword-click-stats", response_model=PaginatedRows)
+async def admin_asin_keyword_click_stats(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(40, ge=1, le=100),
+    keyword: Optional[str] = Query(None, description="关键词精确筛选；不传表示全部"),
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    start_day, end_day, start_utc, end_utc = _resolve_ny_day_range(
+        start_date, end_date, default_last_days=1
+    )
+    if start_utc is None or end_utc is None or start_day is None or end_day is None:
+        raise HTTPException(status_code=400, detail="日期范围无效")
+    total, rows = db.list_asin_keyword_click_stats_paginated(page, per_page, keyword, start_utc, end_utc)
     return _paginate_rows(total, page, per_page, rows)
 
 

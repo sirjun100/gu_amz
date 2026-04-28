@@ -15,6 +15,7 @@ import { RegisterEmailPoolPage } from '@/pages/resources/RegisterEmailPoolPage'
 import { AddressesPage } from '@/pages/addresses/AddressesPage'
 import { TargetAsinsPage } from '@/pages/targetAsins/TargetAsinsPage'
 import { AsinClickRecordsPage } from '@/pages/targetAsins/AsinClickRecordsPage'
+import { KeywordClickStatsPage } from '@/pages/targetAsins/KeywordClickStatsPage'
 import { TaskReportParsePage } from '@/pages/tools/TaskReportParsePage'
 import { CaptchaAssistPage } from '@/pages/tools/CaptchaAssistPage'
 import { SystemSettingsPage } from '@/pages/settings/SystemSettingsPage'
@@ -120,6 +121,7 @@ function App() {
           <Route path="settings" element={<SystemSettingsPage />} />
           <Route path="addresses" element={<AddressesPage />} />
           <Route path="target-asins" element={<TargetAsinsPage />} />
+          <Route path="keyword-click-stats" element={<KeywordClickStatsPage />} />
           <Route path="asin-click-records" element={<AsinClickRecordsPage />} />
           <Route path="tools/task-report-parse" element={<TaskReportParsePage />} />
           <Route path="tools/captcha-assist" element={<CaptchaAssistPage />} />

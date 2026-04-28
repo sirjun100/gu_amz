@@ -85,7 +85,7 @@ export function TargetAsinsPage() {
       <div>
         <h1 className="text-lg font-semibold text-slate-900 dark:text-white">目标 ASIN 管理</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          仅已登记的 ASIN 客户端上报才会累加；服务端按<strong className="font-medium">服务器本地日期</strong>维护「今日点击」，跨日自动清零今日计数。
+          仅已登记的 ASIN 客户端上报才会累加；服务端按<strong className="font-medium">美国纽约日期</strong>维护「今日点击」，跨日自动清零今日计数。
         </p>
       </div>
       <div className="flex flex-wrap gap-2 items-center p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/30">

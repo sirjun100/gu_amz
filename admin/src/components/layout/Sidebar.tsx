@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   Users,
   ShieldCheck,
+  BarChart3,
 } from 'lucide-react'
 import { useUIStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
@@ -56,6 +57,7 @@ const adClickChildren: NavItem[] = [
   { icon: Link2, label: '相关产品点击', path: '/tasks/related-click' },
   { icon: Copy, label: '同类产品点击', path: '/tasks/similar-click' },
   { icon: ScanBarcode, label: '目标 ASIN', path: '/target-asins' },
+  { icon: BarChart3, label: '关键词点击统计', path: '/keyword-click-stats' },
   { icon: ListTree, label: 'ASIN 点击记录', path: '/asin-click-records' },
 ]
 

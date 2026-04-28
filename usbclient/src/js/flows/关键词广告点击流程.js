@@ -9,33 +9,33 @@ function 关键词广告点击流程(task) {
 
     日志收集器.添加("[关键词广告] 开始 task_id=" + tid);
 
-    返回到HOME界面();
+    关键词广告点击流程_返回到HOME界面();
 
     日志收集器.添加("[关键词广告] 步骤1/5 打开 AMG 并选择环境");
-    if (!打开AMG并选择环境()) {
+    if (!关键词广告点击流程_打开AMG并选择环境()) {
       throw new Error("步骤1 失败：打开 AMG 并选择环境");
     }
 
     日志收集器.添加("[关键词广告] 步骤1 完成；返回桌面");
-    返回到HOME界面();
+    关键词广告点击流程_返回到HOME界面();
 
     日志收集器.添加("[关键词广告] 步骤2/5 打开 Chrome");
-    if (!打开Chrome浏览器()) {
+    if (!关键词广告点击流程_打开Chrome浏览器()) {
       throw new Error("步骤2 失败：打开 Chrome 浏览器");
     }
 
-    日志收集器.添加("[关键词广告] 步骤3/5 打开亚马逊首页并随机浏览");
-    if (!打开亚马逊首页并随机浏览()) {
+    日志收集器.添加("[关键词广告] 步骤3/5 关键词广告点击流程_打开亚马逊首页并随机浏览");
+    if (!关键词广告点击流程_打开亚马逊首页并随机浏览()) {
       throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
     }
 
     日志收集器.添加("[关键词广告] 步骤4/5 随机关键词搜索浏览");
-    if (!搜索随机关键词浏览并加购()) {
+    if (!关键词广告点击流程_搜索随机关键词浏览并加购()) {
       throw new Error("步骤4 失败：随机关键词浏览或加购");
     }
 
-    日志收集器.添加("[关键词广告] 步骤5/5 搜索并点击目标任务广告");
-    搜索并点击目标任务广告(task);
+    日志收集器.添加("[关键词广告] 步骤5/5 关键词广告点击流程_搜索并点击目标任务广告");
+    关键词广告点击流程_搜索并点击目标任务广告(task);
 
     日志收集器.添加("[关键词广告] 全部步骤完成 task_id=" + tid);
   } finally {
@@ -51,7 +51,7 @@ function 关键词广告点击流程(task) {
 /**
  * @param {object} task 含 params.keyword、params.res_folder_name；可选 params.target_asin / params.asin 用于上报统计
  */
-function 搜索并点击目标任务广告(task) {
+function 关键词广告点击流程_搜索并点击目标任务广告(task) {
   var p = (task != null && task.params) || {};
   var folderName = p.res_folder_name != null ? String(p.res_folder_name).trim() : "";
   var tid = task != null && task.id != null ? task.id : "?";
@@ -67,10 +67,10 @@ function 搜索并点击目标任务广告(task) {
 
   var kw = String(p.keyword || "").trim();
   if (kw.length === 0) {
-    throw new Error("搜索并点击目标任务广告: params.keyword 为空");
+    throw new Error("关键词广告点击流程_搜索并点击目标任务广告: params.keyword 为空");
   }
   if (folderName.length === 0) {
-    throw new Error("搜索并点击目标任务广告: params.res_folder_name 为空");
+    throw new Error("关键词广告点击流程_搜索并点击目标任务广告: params.res_folder_name 为空");
   }
 
   逐字输入(kw);
@@ -81,12 +81,12 @@ function 搜索并点击目标任务广告(task) {
 
   var listContent = readResString(folderName + "/filelist.txt");
   if (!listContent) {
-    throw new Error("搜索并点击目标任务广告: 未找到资源清单文件 res/" + folderName + "/filelist.txt");
+    throw new Error("关键词广告点击流程_搜索并点击目标任务广告: 未找到资源清单文件 res/" + folderName + "/filelist.txt");
   }
   // 2. 按行分割，获取文件名数组
   var fileNames = listContent.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
   if (fileNames.length === 0) {
-    throw new Error("搜索并点击目标任务广告: 资源清单文件为空");
+    throw new Error("关键词广告点击流程_搜索并点击目标任务广告: 资源清单文件为空");
   }
   日志收集器.添加("[关键词广告] 步骤5 res 内共 " + fileNames.length + " 个文件: res/" + folderName + "/");
 
@@ -174,10 +174,10 @@ function 搜索并点击目标任务广告(task) {
     sleep(随机区间(3000, 6000));
   }
 
-  日志收集器.添加("[关键词广告] 步骤5 搜索并点击目标任务广告 完成");
+  日志收集器.添加("[关键词广告] 步骤5 关键词广告点击流程_搜索并点击目标任务广告 完成");
 }
 
-function 搜索随机关键词浏览并加购() {
+function 关键词广告点击流程_搜索随机关键词浏览并加购() {
   日志收集器.添加("[关键词广告] 步骤4 请求随机关键词");
   var rkPool = 运维接口.随机关键词(3);
   var keywords =
@@ -266,7 +266,7 @@ function 搜索随机关键词浏览并加购() {
 }
 
 var AMZ_亚马逊首页URL = "https://www.amazon.com";
-function 打开亚马逊首页并随机浏览() {
+function 关键词广告点击流程_打开亚马逊首页并随机浏览() {
   var node = name("NTPHomeFakeOmniboxAccessibilityID").getOneNodeInfo(5000);
   if (node == null || node === undefined) {
     var addresNode = name("Address and search bar").getOneNodeInfo(5000);
@@ -338,7 +338,7 @@ function 打开亚马逊首页并随机浏览() {
   return true;
 }
 
-function 打开AMG并选择环境() {
+function 关键词广告点击流程_打开AMG并选择环境() {
   var 选择环境状态 = false;
   var attempt = 0;
   for (attempt = 0; attempt < 3; attempt++) {
@@ -368,7 +368,7 @@ function 打开AMG并选择环境() {
       break;
     }
     sleep(2000);
-    if (!返回到HOME界面()) {
+    if (!关键词广告点击流程_返回到HOME界面()) {
       日志收集器.添加("[关键词广告] 步骤1 回桌面失败");
       return false;
     }
@@ -376,7 +376,7 @@ function 打开AMG并选择环境() {
   return 选择环境状态;
 }
 
-function 打开Chrome浏览器() {
+function 关键词广告点击流程_打开Chrome浏览器() {
   var launched = false;
   var i = 0;
   for (i = 0; i < 3; i++) {
@@ -418,7 +418,7 @@ function 打开Chrome浏览器() {
   return false;
 }
 
-function 返回到HOME界面() {
+function 关键词广告点击流程_返回到HOME界面() {
   var FLAG = false;
   var i = 0;
   for (i = 0; i < 3; i++) {

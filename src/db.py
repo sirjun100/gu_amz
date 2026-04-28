@@ -3,7 +3,8 @@ import os
 import random
 import uuid
 from contextlib import contextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pymysql
 from pymysql.cursors import DictCursor
@@ -19,6 +20,31 @@ load_dotenv()
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
 
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
+try:
+    NY_TZ = ZoneInfo("America/New_York")
+except ZoneInfoNotFoundError as e:
+    raise RuntimeError(
+        "缺少时区数据 America/New_York。请安装 tzdata：python -m pip install tzdata"
+    ) from e
+
+
+def ny_today_date() -> date:
+    return datetime.now(timezone.utc).astimezone(NY_TZ).date()
+
+
+def ny_day_utc_bounds(day: date) -> tuple[datetime, datetime]:
+    start_ny = datetime.combine(day, time.min, NY_TZ)
+    end_ny = start_ny + timedelta(days=1)
+    return (
+        start_ny.astimezone(timezone.utc).replace(tzinfo=None),
+        end_ny.astimezone(timezone.utc).replace(tzinfo=None),
+    )
+
+
+def ny_day_range_utc_bounds(start_day: date, end_day: date) -> tuple[datetime, datetime]:
+    start_utc, _ = ny_day_utc_bounds(start_day)
+    _, end_utc = ny_day_utc_bounds(end_day)
+    return start_utc, end_utc
 
 
 def make_register_environment_label() -> str:
@@ -141,6 +167,8 @@ def _mysql_params():
         "charset": "utf8mb4",
         "cursorclass": DictCursor,
         "autocommit": False,
+        # Force DB session timezone to UTC so API-layer conversion to New York is deterministic.
+        "init_command": "SET time_zone = '+00:00'",
     }
 
 
@@ -1072,7 +1100,7 @@ class Database:
                 row = cur.fetchone()
             if not row:
                 return None
-            today = date.today()
+            today = ny_today_date()
             sd = row.get("stats_date")
             if hasattr(sd, "date"):
                 sd = sd.date()
@@ -1106,32 +1134,148 @@ class Database:
             }
 
     def list_asin_click_records_paginated(
-        self, page: int, per_page: int, q: str | None, asin_filter: str | None
+        self,
+        page: int,
+        per_page: int,
+        q: str | None,
+        asin_filter: str | None,
+        keyword_filter: str | None = None,
+        start_utc: datetime | None = None,
+        end_utc: datetime | None = None,
     ):
         offset = (page - 1) * per_page
         where = ["1=1"]
         params: list = []
         if q and q.strip():
             like = f"%{q.strip()}%"
-            where.append("(keyword LIKE %s OR asin LIKE %s OR COALESCE(device_id,'') LIKE %s)")
-            params.extend([like, like, like])
+            where.append(
+                "(r.keyword LIKE %s OR r.asin LIKE %s OR COALESCE(r.device_id,'') LIKE %s OR COALESCE(d.alias,'') LIKE %s)"
+            )
+            params.extend([like, like, like, like])
         if asin_filter and str(asin_filter).strip():
             af = normalize_target_asin(str(asin_filter).strip()) or str(asin_filter).strip().upper()
-            where.append("asin = %s")
+            where.append("r.asin = %s")
             params.append(af[:16])
+        if keyword_filter and str(keyword_filter).strip():
+            where.append("r.keyword = %s")
+            params.append(str(keyword_filter).strip()[:512])
+        if start_utc is not None:
+            where.append("r.created_at >= %s")
+            params.append(start_utc)
+        if end_utc is not None:
+            where.append("r.created_at < %s")
+            params.append(end_utc)
         wsql = " AND ".join(where)
         with self._cursor() as (conn, cur):
-            cur.execute(f"SELECT COUNT(*) AS c FROM asin_click_records WHERE {wsql}", params)
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM asin_click_records r
+                LEFT JOIN devices d ON d.device_id = r.device_id
+                WHERE {wsql}
+                """,
+                params,
+            )
             total = cur.fetchone()["c"]
             cur.execute(
                 f"""
-                SELECT * FROM asin_click_records WHERE {wsql}
-                ORDER BY id DESC LIMIT %s OFFSET %s
+                SELECT r.*, d.alias AS device_alias
+                FROM asin_click_records r
+                LEFT JOIN devices d ON d.device_id = r.device_id
+                WHERE {wsql}
+                ORDER BY r.id DESC LIMIT %s OFFSET %s
                 """,
                 [*params, per_page, offset],
             )
             rows = cur.fetchall()
         return total, rows
+
+    def list_asin_click_record_keywords(self, start_utc: datetime | None = None, end_utc: datetime | None = None) -> list[str]:
+        where = ["1=1"]
+        params: list = []
+        if start_utc is not None:
+            where.append("created_at >= %s")
+            params.append(start_utc)
+        if end_utc is not None:
+            where.append("created_at < %s")
+            params.append(end_utc)
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT DISTINCT keyword
+                FROM asin_click_records
+                WHERE {wsql}
+                ORDER BY keyword ASC
+                LIMIT 1000
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        out: list[str] = []
+        for r in rows:
+            kw = str(r.get("keyword") or "").strip()
+            if kw:
+                out.append(kw)
+        return out
+
+    def list_asin_keyword_click_stats_paginated(
+        self,
+        page: int,
+        per_page: int,
+        keyword_filter: str | None,
+        start_utc: datetime,
+        end_utc: datetime,
+    ):
+        where = ["created_at >= %s", "created_at < %s"]
+        params: list = [start_utc, end_utc]
+        if keyword_filter and str(keyword_filter).strip():
+            where.append("keyword = %s")
+            params.append(str(keyword_filter).strip()[:512])
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT keyword, asin, created_at
+                FROM asin_click_records
+                WHERE {wsql}
+                ORDER BY created_at DESC
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+
+        grouped: dict[tuple[str, str, str], int] = {}
+        for r in rows:
+            kw = str(r.get("keyword") or "").strip()
+            asin = str(r.get("asin") or "").strip().upper()
+            if not kw or not asin:
+                continue
+            dt = r.get("created_at")
+            if dt is None:
+                continue
+            if getattr(dt, "tzinfo", None) is None:
+                dt_utc = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt_utc = dt.astimezone(timezone.utc)
+            ny_day = dt_utc.astimezone(NY_TZ).date().isoformat()
+            key = (kw, asin, ny_day)
+            grouped[key] = int(grouped.get(key, 0)) + 1
+
+        items: list[dict] = []
+        for (kw, asin, day), cnt in grouped.items():
+            items.append(
+                {
+                    "keyword": kw,
+                    "asin": asin,
+                    "click_count": cnt,
+                    "stats_date": day,
+                }
+            )
+        items.sort(key=lambda x: (-int(x["stats_date"].replace("-", "")), -int(x["click_count"]), x["keyword"], x["asin"]))
+        total = len(items)
+        offset = (page - 1) * per_page
+        return total, items[offset : offset + per_page]
 
     def addresses_import_rows(self, rows: list[dict]) -> int:
         n = 0
