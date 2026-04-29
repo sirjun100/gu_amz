@@ -44,6 +44,17 @@ function main() {
     sleep(2000);
 
     logd("开始执行脚本...")
+
+    // var 节点 = 找可视化节点NAME("Sumobaby Blackout Curtains for Bedroom Portable 42\"x60\",No Drill Black Out Shades with Upgraded Hook&Loop Tapes,100% Blackout Window Cover,Thermal Insulated Blinds for Bedroom,Nursery(1 Panel,Black)");
+    // logd(节点.xpath);
+    // let bounds = 节点.bounds;
+    // let nodeLeft = bounds.left;
+    // let nodeTop = bounds.top;
+    // let nodeRight = bounds.right;
+    // let nodeBottom = bounds.bottom;
+    // logd(`节点边界: L=${nodeLeft}, T=${nodeTop}, R=${nodeRight}, B=${nodeBottom}`);
+
+
     AMZ_启动亚马逊任务循环();
 }
 
