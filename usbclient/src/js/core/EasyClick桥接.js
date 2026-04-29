@@ -274,6 +274,69 @@ function 找节点(accessibilityName) {
 }
 
 
+
+// 支持传入 单个名称 或 名称数组，找到任意一个可视化节点就返回
+function 找可视化节点NAME(namestr) {
+  日志收集器.添加("===== 开始查找可视化节点 =====");
+
+  // 1. 统一转成数组（兼容单个字符串 / 数组）
+  var 查找列表 = Array.isArray(namestr) ? namestr : [namestr];
+
+  // 2. 循环查找（最多滑动10次防止死循环，可自己改）
+  var 最大滑动次数 = 10;
+  var 当前滑动次数 = 0;
+
+  while (当前滑动次数 < 最大滑动次数) {
+    // 遍历所有要找的名称，只要找到一个就返回
+    for (var i = 0; i < 查找列表.length; i++) {
+      var 目标名称 = 查找列表[i];
+      日志收集器.添加("正在查找节点：" + 目标名称);
+
+      var 节点 = name(目标名称).getOneNodeInfo(5000);
+      // 节点不存在 → 跳过
+      if (!节点) {
+        continue;
+      }
+      // 节点存在 + 在可视区域 → 直接返回
+      if (节点.bounds.bottom <= 1500) {
+        日志收集器.添加("找到可视化节点：" + 目标名称);
+        return 节点;
+      }
+    }
+    // 所有名称都找过了，没找到 → 下滑一次
+    日志收集器.添加("本轮未找到可视化节点，执行下滑");
+    向下滑一次();
+    sleep(3000, 5000);
+    当前滑动次数++;
+  }
+  // 滑动到上限都没找到
+  日志收集器.添加("滑动" + 最大滑动次数 + "次，未找到任何可视化节点");
+  return null;
+}
+
+
+
+function 找可视化节点XPATH(namestr){
+  日志收集器.添加("正在找节点："+namestr);
+  while(true){
+    var 节点 = xpath(namestr).getOneNodeInfo(5000);
+    if(!节点){
+      日志收集器.添加("没有找到节点，返回NULL");
+      return null;
+    }
+    if(节点.bounds.bottom>1500){
+      日志收集器.添加("找到节点，但是不在可视化区域，下滑一次继续找");
+      向下滑一次()
+      sleep(3000,5000);
+      continue;
+    }else{
+      日志收集器.添加("匹配到可视化节点");
+      return 节点;
+    }
+  }
+}
+
+
 function 逐字输入(text) {
   var s = text != null ? String(text) : "";
   for (var i = 0; i < s.length; i++) {

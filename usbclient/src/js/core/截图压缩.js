@@ -84,15 +84,8 @@ function AMZ_截屏保存到临时文件() {
     logw("AMZ_截屏保存: captureFullScreen 返回空");
     return "";
   }
-  var dir = "";
-  if (typeof AMZ_SCRIPT_BASE !== "undefined" && AMZ_SCRIPT_BASE != null && String(AMZ_SCRIPT_BASE).trim().length > 0) {
-    var b = String(AMZ_SCRIPT_BASE).trim().replace(/\\/g, "/");
-    if (b.charAt(b.length - 1) !== "/") {
-      b = b + "/";
-    }
-    dir = b;
-  }
-  var tmp = dir + "amz_screenfail_" + new Date().getTime() + ".jpg";
+
+  var tmp = file.getSandBoxDir() + "/amz_screenfail_" + new Date().getTime() + ".jpg";
   try {
     if (typeof img.saveTo === "function" && img.saveTo(tmp) === true) {
       return tmp;
@@ -110,4 +103,58 @@ function AMZ_截屏保存到临时文件() {
     } catch (e2) {}
   }
   return "";
+}
+
+
+
+function 截图保存WEBP(){
+  // 2. 申请截图权限并截图
+  var screenImage = image.captureFullScreen();
+  if (!screenImage) {
+    logw("AMZ_截屏保存: captureFullScreen 返回空");
+    return "";
+  }
+  // 3. 将 AutoImage 转换为 Bitmap（关键步骤）
+  let bitmap = image.imageToBitmap(screenImage);
+  if (!bitmap) {
+    loge("转换 Bitmap 失败");
+    image.recycle(screenImage);
+    return "";
+  }
+  // 3. 定义输出路径和参数
+
+  let outputPath = file.getSandBoxDir() + "/amz_screenfail_" + new Date().getTime() + ".jpg";//输出为 WebP 格式
+  let quality = 30; // 质量百分比 (1-100)，值越小，文件越小，但画质越低
+  let format = "jpg"; // 输出格式，可选："png", "jpg", "webp"
+  // 5. 使用 saveBitmap 进行压缩和保存
+  let saveResult = image.saveBitmap(bitmap, format, quality, outputPath);
+  if (saveResult) {
+    logd("✅ 图片压缩并转换为 " + format.toUpperCase() + " 成功，文件路径: " + outputPath);
+    // 6. （可选）获取文件大小
+
+    //let fileSize = file.getFileSize(outputPath);
+    //logd("压缩后文件大小: " + fileSize + " 字节 (" + (fileSize / 1024).toFixed(2) + " KB)");
+  } else {
+    loge("❌ 图片保存/压缩失败");
+    return "";
+  }
+  // 7. 务必回收内存
+  image.recycle(screenImage);
+  if (bitmap) {
+    screenImage.recycle(); // 回收 Bitmap 对象
+  }
+
+
+  // 3. 压缩文件
+  let zipFilePath =file.getSandBoxDir()+"/screenshots.zip"; // 压缩包保存路径
+  let password = ""; // 密码，空字符串代表无密码
+  let filesToCompress = [outputPath]; // 要压缩的文件列表，可以是多个
+  let compressResult = utils.zip(zipFilePath, password, filesToCompress);
+  if (compressResult) {
+    logd("✅ 压缩成功，ZIP包路径: " + zipFilePath);
+  } else {
+    loge("❌ 压缩失败");
+  }
+
+  return outputPath;
 }

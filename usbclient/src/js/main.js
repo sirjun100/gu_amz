@@ -44,8 +44,6 @@ function main() {
     sleep(2000);
 
     logd("开始执行脚本...")
-
-
     AMZ_启动亚马逊任务循环();
 }
 
