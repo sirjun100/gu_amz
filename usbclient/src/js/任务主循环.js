@@ -23,6 +23,7 @@ var AMZ_MODULE_FILES = [
   "steps/详情页相关商品广告点击.js",
   "steps/详情页同类推荐广告点击.js",
   "flows/关键词广告点击流程.js",
+  "flows/关键词广告点击流程APP.js",
   "flows/相关商品广告点击流程.js",
   "flows/同行同类广告点击流程.js",
 ];
@@ -165,6 +166,8 @@ function 执行一条任务(task) {
     logd("开始执行任务 id=" + tid + " type=" + tt + " 截图策略=" + (AMZ_RUNTIME.screenshotUploadPolicy || "all"));
     if (tt === "search_click") {
       关键词广告点击流程(task);
+    } else if (tt === "search_click_app") {
+      关键词广告点击流程APP版本(task);
     } else if (tt === "related_click") {
       //相关商品广告点击流程(task);
     } else if (tt === "similar_click") {

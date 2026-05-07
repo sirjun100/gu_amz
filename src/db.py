@@ -18,6 +18,7 @@ from .totp_qr import decode_totp_secret_from_image_bytes, totp_current_code
 load_dotenv()
 
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
+APP_CLICK_TASK_TYPES = frozenset({"search_click_app"})
 
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
 try:
@@ -294,6 +295,7 @@ class Database:
         self._migrate_register_code_pools()
         self._migrate_amazon_accounts()
         self._migrate_captcha_assist_sessions()
+        self._migrate_app_ad_click_records()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
 
@@ -329,6 +331,23 @@ class Database:
                     INDEX idx_acr_asin (asin),
                     INDEX idx_acr_created (created_at),
                     INDEX idx_acr_keyword (keyword(191))
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+
+    def _migrate_app_ad_click_records(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_ad_click_records (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    identify_word VARCHAR(512) NOT NULL,
+                    keyword VARCHAR(512) NULL,
+                    device_id VARCHAR(128) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_aacr_identify_word (identify_word(191)),
+                    INDEX idx_aacr_created (created_at),
+                    INDEX idx_aacr_keyword (keyword(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
@@ -1665,6 +1684,270 @@ class Database:
                     )
                     n += 1
         return n
+
+    def _pick_random_totp_ready_amazon_account_cur(self, cur) -> dict | None:
+        cur.execute(
+            """
+            SELECT phone, account_username, account_password
+            FROM amazon_accounts
+            WHERE (totp_set_at IS NOT NULL OR COALESCE(totp_secret, '') <> '')
+              AND COALESCE(phone, '') <> ''
+              AND COALESCE(account_password, '') <> ''
+            ORDER BY RAND()
+            LIMIT 1
+            """
+        )
+        return cur.fetchone()
+
+    def insert_app_click_tasks_batch(
+        self,
+        keyword: str,
+        identify_word: str,
+        identify_prices: list[str],
+        device_counts: list[tuple[str, int]],
+        persist_data: bool = False,
+    ) -> int:
+        kw = (keyword or "").strip()
+        iw = (identify_word or "").strip()
+        prices = [str(x).strip() for x in (identify_prices or []) if str(x).strip()]
+        if not kw or not iw:
+            return 0
+        n = 0
+        pd = 1 if persist_data else 0
+        with self._cursor() as (conn, cur):
+            for device_id, count in device_counts:
+                c = max(0, int(count))
+                did = device_id.strip() if device_id else ""
+                if not did:
+                    continue
+                for _ in range(c):
+                    account = self._pick_random_totp_ready_amazon_account_cur(cur)
+                    if not account:
+                        raise ValueError("NO_TOTP_READY_AMAZON_ACCOUNT")
+                    payload = json.dumps(
+                        {
+                            "keyword": kw,
+                            "identify_word": iw,
+                            "identify_prices": prices,
+                            "phone": (account.get("phone") or "").strip(),
+                            "account_username": (account.get("account_username") or "").strip(),
+                            "password": (account.get("account_password") or "").strip(),
+                        },
+                        ensure_ascii=False,
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                        VALUES (%s, %s, 'pending', %s, %s)
+                        """,
+                        (did, "search_click_app", payload, pd),
+                    )
+                    n += 1
+        return n
+
+    def insert_app_ad_click_record(self, identify_word: str, keyword: str | None, device_id: str | None) -> dict | None:
+        iw = (identify_word or "").strip()[:512]
+        if not iw:
+            return None
+        kw = (keyword or "").strip()[:512] or None
+        did = (device_id or "").strip()[:128] or None
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO app_ad_click_records (identify_word, keyword, device_id)
+                VALUES (%s, %s, %s)
+                """,
+                (iw, kw, did),
+            )
+            rid = int(cur.lastrowid)
+            cur.execute(
+                """
+                SELECT COUNT(*) AS c FROM app_ad_click_records
+                WHERE identify_word = %s
+                """,
+                (iw,),
+            )
+            total = int(cur.fetchone()["c"])
+            today = ny_today_date()
+            st, et = ny_day_utc_bounds(today)
+            cur.execute(
+                """
+                SELECT COUNT(*) AS c FROM app_ad_click_records
+                WHERE identify_word = %s AND created_at >= %s AND created_at < %s
+                """,
+                (iw, st, et),
+            )
+            today_count = int(cur.fetchone()["c"])
+            return {
+                "identify_word": iw,
+                "keyword": kw,
+                "record_id": rid,
+                "total_clicks": total,
+                "today_clicks": today_count,
+            }
+
+    def list_app_ad_click_records_paginated(
+        self,
+        page: int,
+        per_page: int,
+        q: str | None,
+        identify_word_filter: str | None,
+        start_utc: datetime | None = None,
+        end_utc: datetime | None = None,
+    ):
+        offset = (page - 1) * per_page
+        where = ["1=1"]
+        params: list = []
+        if q and q.strip():
+            like = f"%{q.strip()}%"
+            where.append(
+                "(r.identify_word LIKE %s OR COALESCE(r.keyword,'') LIKE %s OR COALESCE(r.device_id,'') LIKE %s OR COALESCE(d.alias,'') LIKE %s)"
+            )
+            params.extend([like, like, like, like])
+        if identify_word_filter and identify_word_filter.strip():
+            where.append("r.identify_word = %s")
+            params.append(identify_word_filter.strip()[:512])
+        if start_utc is not None:
+            where.append("r.created_at >= %s")
+            params.append(start_utc)
+        if end_utc is not None:
+            where.append("r.created_at < %s")
+            params.append(end_utc)
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT COUNT(*) AS c
+                FROM app_ad_click_records r
+                LEFT JOIN devices d ON d.device_id = r.device_id
+                WHERE {wsql}
+                """,
+                params,
+            )
+            total = int(cur.fetchone()["c"])
+            cur.execute(
+                f"""
+                SELECT r.*, d.alias AS device_alias
+                FROM app_ad_click_records r
+                LEFT JOIN devices d ON d.device_id = r.device_id
+                WHERE {wsql}
+                ORDER BY r.id DESC LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            )
+            rows = cur.fetchall()
+        return total, rows
+
+    def list_app_ad_click_record_keywords(self, start_utc: datetime | None = None, end_utc: datetime | None = None) -> list[str]:
+        where = ["1=1"]
+        params: list = []
+        if start_utc is not None:
+            where.append("created_at >= %s")
+            params.append(start_utc)
+        if end_utc is not None:
+            where.append("created_at < %s")
+            params.append(end_utc)
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT DISTINCT identify_word
+                FROM app_ad_click_records
+                WHERE {wsql}
+                ORDER BY identify_word ASC
+                LIMIT 1000
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        out: list[str] = []
+        for r in rows:
+            kw = str(r.get("identify_word") or "").strip()
+            if kw:
+                out.append(kw)
+        return out
+
+    def list_app_ad_click_record_search_keywords(self, start_utc: datetime | None = None, end_utc: datetime | None = None) -> list[str]:
+        where = ["1=1", "COALESCE(keyword,'') <> ''"]
+        params: list = []
+        if start_utc is not None:
+            where.append("created_at >= %s")
+            params.append(start_utc)
+        if end_utc is not None:
+            where.append("created_at < %s")
+            params.append(end_utc)
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT DISTINCT keyword
+                FROM app_ad_click_records
+                WHERE {wsql}
+                ORDER BY keyword ASC
+                LIMIT 1000
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        out: list[str] = []
+        for r in rows:
+            kw = str(r.get("keyword") or "").strip()
+            if kw:
+                out.append(kw)
+        return out
+
+    def list_app_ad_keyword_click_stats_paginated(
+        self,
+        page: int,
+        per_page: int,
+        identify_word_filter: str | None,
+        keyword_filter: str | None,
+        start_utc: datetime,
+        end_utc: datetime,
+    ):
+        where = ["created_at >= %s", "created_at < %s"]
+        params: list = [start_utc, end_utc]
+        if identify_word_filter and identify_word_filter.strip():
+            where.append("identify_word = %s")
+            params.append(identify_word_filter.strip()[:512])
+        if keyword_filter and keyword_filter.strip():
+            where.append("keyword = %s")
+            params.append(keyword_filter.strip()[:512])
+        wsql = " AND ".join(where)
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT identify_word, keyword, created_at
+                FROM app_ad_click_records
+                WHERE {wsql}
+                ORDER BY created_at DESC
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        grouped: dict[tuple[str, str, str], int] = {}
+        for r in rows:
+            iw = str(r.get("identify_word") or "").strip()
+            if not iw:
+                continue
+            kw = str(r.get("keyword") or "").strip()
+            dt = r.get("created_at")
+            if dt is None:
+                continue
+            if getattr(dt, "tzinfo", None) is None:
+                dt_utc = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt_utc = dt.astimezone(timezone.utc)
+            ny_day = dt_utc.astimezone(NY_TZ).date().isoformat()
+            key = (kw, iw, ny_day)
+            grouped[key] = int(grouped.get(key, 0)) + 1
+        items: list[dict] = []
+        for (kw, iw, day), cnt in grouped.items():
+            items.append({"keyword": kw, "identify_word": iw, "click_count": cnt, "stats_date": day})
+        items.sort(key=lambda x: (-int(x["stats_date"].replace("-", "")), -int(x["click_count"]), x["keyword"], x["identify_word"]))
+        total = len(items)
+        offset = (page - 1) * per_page
+        return total, items[offset : offset + per_page]
 
     def register_code_pools_stats(self) -> dict:
         with self._cursor() as (conn, cur):

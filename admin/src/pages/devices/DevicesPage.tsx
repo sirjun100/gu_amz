@@ -11,6 +11,7 @@ import { panelPositionNearPointer } from '@/utils/followPointer'
 const PENDING_TASK_LINES: { task_type: string; label: string }[] = [
   { task_type: 'register', label: '待执行自动注册' },
   { task_type: 'search_click', label: '待执行搜索产品点击' },
+  { task_type: 'search_click_app', label: '待执行搜索产品点击APP版本' },
   { task_type: 'related_click', label: '待执行相关产品点击' },
   { task_type: 'similar_click', label: '待执行同类产品点击' },
 ]

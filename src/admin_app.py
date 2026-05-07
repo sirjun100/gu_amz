@@ -147,6 +147,17 @@ class BatchClickTasksBody(BaseModel):
     )
 
 
+class BatchAppClickTasksBody(BaseModel):
+    keyword: str = Field(..., min_length=1)
+    identify_word: str = Field(..., min_length=1)
+    identify_prices: str = Field("", description="多个价格用英文逗号分隔")
+    mode: str = Field(..., pattern="^(manual|smart)$")
+    device_ids: list[str] = Field(default_factory=list)
+    per_device_counts: dict[str, int] = Field(default_factory=dict)
+    total_count: int = Field(0, ge=0, le=100000)
+    save_data_record: bool = Field(False)
+
+
 class BatchRegisterBody(BaseModel):
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
@@ -198,6 +209,12 @@ class ClientAsinClickBody(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=128)
     asin: str = Field(..., min_length=1, max_length=32)
     keyword: str = Field(..., min_length=1, max_length=512)
+
+
+class ClientAppAdClickBody(BaseModel):
+    device_id: str = Field(..., min_length=1, max_length=128)
+    identify_word: str = Field(..., min_length=1, max_length=512)
+    keyword: str | None = Field(None, max_length=512)
 
 
 class ClientAmazonBootstrapBody(BaseModel):
@@ -310,6 +327,7 @@ def _distribute_total(total: int, n: int) -> list[int]:
 
 
 CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
+APP_CLICK_TYPES = frozenset({"search_click_app"})
 
 
 def _parse_ymd(value: str | None, field_name: str) -> date | None:
@@ -534,6 +552,43 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
         pairs,
         persist_data=body.save_data_record,
     )
+    return {"ok": True, "created": n}
+
+
+@app.post("/api/v1/admin/tasks/batch-click-app")
+async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTasksBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
+    if not device_ids:
+        raise HTTPException(status_code=400, detail="璇疯嚦灏戦€夋嫨涓€鍙拌澶?")
+    pairs: list[tuple[str, int]] = []
+    if body.mode == "manual":
+        for d in device_ids:
+            c = int(body.per_device_counts.get(d, 0))
+            if c > 0:
+                pairs.append((d, c))
+    else:
+        total = int(body.total_count)
+        if total <= 0:
+            raise HTTPException(status_code=400, detail="鏅鸿兘鍒嗛厤璇峰～鍐欐€讳换鍔℃暟")
+        counts = _distribute_total(total, len(device_ids))
+        pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
+    if not pairs:
+        raise HTTPException(status_code=400, detail="娌℃湁鍙垱寤虹殑浠诲姟鏁伴噺")
+    prices = [x.strip() for x in (body.identify_prices or "").split(",") if x and x.strip()]
+    try:
+        n = db.insert_app_click_tasks_batch(
+            body.keyword.strip(),
+            body.identify_word.strip(),
+            prices,
+            pairs,
+            persist_data=body.save_data_record,
+        )
+    except ValueError as e:
+        if str(e) == "NO_TOTP_READY_AMAZON_ACCOUNT":
+            raise HTTPException(status_code=400, detail="亚马逊账号管理中没有 TOTP 状态已设置的可用账号")
+        raise
     return {"ok": True, "created": n}
 
 
@@ -936,6 +991,68 @@ async def admin_asin_keyword_click_stats(
     if start_utc is None or end_utc is None or start_day is None or end_day is None:
         raise HTTPException(status_code=400, detail="日期范围无效")
     total, rows = db.list_asin_keyword_click_stats_paginated(page, per_page, keyword, start_utc, end_utc)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.get("/api/v1/admin/app-ad-click-records", response_model=PaginatedRows)
+async def admin_app_ad_click_records_list(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(40, ge=1, le=100),
+    q: Optional[str] = None,
+    identify_word: Optional[str] = Query(None, description="按识别词精确筛选"),
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    _, _, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=None)
+    total, rows = db.list_app_ad_click_records_paginated(page, per_page, q, identify_word, start_utc, end_utc)
+    return _paginate_rows(total, page, per_page, rows)
+
+
+@app.get("/api/v1/admin/app-ad-click-record-keywords")
+async def admin_app_ad_click_record_keywords(
+    user: CurrentUser,
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    _, _, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=None)
+    items = db.list_app_ad_click_record_keywords(start_utc, end_utc)
+    return {"items": items}
+
+
+@app.get("/api/v1/admin/app-ad-click-record-search-keywords")
+async def admin_app_ad_click_record_search_keywords(
+    user: CurrentUser,
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    _, _, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=None)
+    items = db.list_app_ad_click_record_search_keywords(start_utc, end_utc)
+    return {"items": items}
+
+
+@app.get("/api/v1/admin/app-ad-keyword-click-stats", response_model=PaginatedRows)
+async def admin_app_ad_keyword_click_stats(
+    user: CurrentUser,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(40, ge=1, le=100),
+    keyword: Optional[str] = Query(None, description="关键词精确筛选；不传表示全部"),
+    identify_word: Optional[str] = Query(None, description="识别词精确筛选；不传表示全部"),
+    start_date: Optional[str] = Query(None, description="纽约时区起始日期 YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="纽约时区结束日期 YYYY-MM-DD"),
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    start_day, end_day, start_utc, end_utc = _resolve_ny_day_range(start_date, end_date, default_last_days=1)
+    if start_utc is None or end_utc is None or start_day is None or end_day is None:
+        raise HTTPException(status_code=400, detail="日期范围无效")
+    total, rows = db.list_app_ad_keyword_click_stats_paginated(page, per_page, identify_word, keyword, start_utc, end_utc)
     return _paginate_rows(total, page, per_page, rows)
 
 
@@ -1361,6 +1478,15 @@ async def client_asin_click(body: ClientAsinClickBody):
     out = db.increment_target_asin_click(norm, kw, body.device_id)
     if not out:
         raise HTTPException(status_code=500, detail="璁板綍鐐瑰嚮澶辫触")
+    return {"ok": True, **out}
+
+
+@app.post("/api/v1/client/app-ad-clicks")
+async def client_app_ad_click(body: ClientAppAdClickBody):
+    db.upsert_device_heartbeat(body.device_id)
+    out = db.insert_app_ad_click_record(body.identify_word, body.keyword, body.device_id)
+    if not out:
+        raise HTTPException(status_code=400, detail="identify_word 不能为空")
     return {"ok": True, **out}
 
 

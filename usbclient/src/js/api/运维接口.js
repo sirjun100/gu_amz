@@ -192,6 +192,33 @@ var 运维接口 = {
     }
   },
 
+  /**
+   * APP 广告点击上报：按识别词统计点击次数并写入点击记录（含时间、设备、搜索词）。
+   * @param identifyWord 识别词（一般是品牌）
+   * @param keyword 搜索词（可选）
+   * @return {{ ok: boolean, identify_word?: string, keyword?: string, total_clicks?: number, today_clicks?: number, record_id?: number }|null}
+   */
+  上报APP广告点击: function (identifyWord, keyword) {
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/app-ad-clicks";
+    var body = {
+      device_id: AMZ_CONFIG.deviceId,
+      identify_word: identifyWord != null ? String(identifyWord).trim() : "",
+      keyword: keyword != null ? String(keyword).trim() : "",
+    };
+    var res = http.postJSON(url, body, AMZ_CONFIG.httpTimeoutMs, null);
+    logd("app-ad-clicks => " + res);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      var j = typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+      return j;
+    } catch (e) {
+      logw("app-ad-clicks 解析: " + e);
+      return null;
+    }
+  },
+
   /** 注册任务开始后创建/更新账号记录（POST /client/amazon-accounts/bootstrap） */
   亚马逊账号上报引导: function (taskId) {
     var tid = Number(taskId);

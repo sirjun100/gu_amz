@@ -23,7 +23,7 @@ function 关键词广告点击流程APP版本(task) {
     }
 
     日志收集器.添加("[关键词广告] 步骤2/5 登录亚马逊账号");
-    if (!关键词广告点击APP版本_登录亚马逊账号()) {
+    if (!关键词广告点击APP版本_登录亚马逊账号(task)) {
       throw new Error("步骤2 失败：登录亚马逊账号");
     }
 
@@ -55,9 +55,16 @@ function 关键词广告点击流程APP版本(task) {
  * @param {object} task 含 params.keyword、params.res_folder_name；可选 params.target_asin / params.asin 用于上报统计
  */
 
-function 关键词广告点击APP版本_浏览详情页面(识别词) {
+function 关键词广告点击APP版本_浏览详情页面(识别词, 关键词) {
 
-  //在这里上传识别词用于统计，未实现，AI请实现
+  var rep = 运维接口.上报APP广告点击(识别词, 关键词 || "");
+  if (rep != null && rep.ok === true) {
+    日志收集器.添加(
+      "[关键词广告][APP] 识别词上报成功 " + 识别词 + " total=" + rep.total_clicks + " today=" + rep.today_clicks
+    );
+  } else {
+    日志收集器.添加("[关键词广告][APP] 识别词上报失败或异常 identify_word=" + 识别词);
+  }
 
   var 进入详情开始时间 = Date.now();
   for (var j = 0; j < 5; j++) {
@@ -88,9 +95,34 @@ function 关键词广告点击APP版本_浏览详情页面(识别词) {
 }
 
 function 关键词广告点击APP版本_搜索并点击目标任务广告(task) {
-  var 关键词 = 'black curtains';
-  var 品牌 = 'MIULEE';
-  var 价格列表 = ['13.99', '16.99'];
+  var p = task && task.params ? task.params : {};
+  var 关键词 = String(p.keyword != null ? p.keyword : "").trim();
+  var 品牌 = String(p.identify_word != null ? p.identify_word : "").trim();
+  var 价格列表 = [];
+  if (p.identify_prices != null) {
+    if (typeof p.identify_prices === "string") {
+      var arr = String(p.identify_prices).split(",");
+      for (var i0 = 0; i0 < arr.length; i0++) {
+        var one = String(arr[i0]).trim();
+        if (one.length > 0) {
+          价格列表.push(one);
+        }
+      }
+    } else if (typeof p.identify_prices.length === "number") {
+      for (var i1 = 0; i1 < p.identify_prices.length; i1++) {
+        var one2 = String(p.identify_prices[i1]).trim();
+        if (one2.length > 0) {
+          价格列表.push(one2);
+        }
+      }
+    }
+  }
+  if (关键词.length === 0) {
+    throw new Error("关键词广告点击APP版本: params.keyword 为空");
+  }
+  if (品牌.length === 0 && 价格列表.length === 0) {
+    throw new Error("关键词广告点击APP版本: identify_word 与 identify_prices 不能同时为空");
+  }
   日志收集器.添加("[关键词广告] 步骤5 搜索并点击广告 keyword=" + 关键词);
 
   日志收集器.添加("点击搜索框");
@@ -185,7 +217,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
             if (nameMatch("Visit the Store.*").getOneNodeInfo(5000)) {
               日志收集器.添加("成功进入到商品详情。开始浏览");
               点击广告次数 = 点击广告次数 + 1;
-              关键词广告点击APP版本_浏览详情页面(名称节点.name);
+              关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
             }
             break;
           } else {
@@ -195,7 +227,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
           日志收集器.添加('没找到名称节点');
         }
       } else {
-        for (let j = 0; j <= 价格列表.length; j++) {
+        for (let j = 0; j < 价格列表.length; j++) {
           var 价格 = 价格列表[j];
           日志收集器.添加("正在查找价格=【$" + 价格 + "】节点。");
           var 价格节点 = node.getOneNodeInfo(xpath(".//node[@type='StaticText'][@value='$" + 价格 + "']"), 2000);
@@ -208,7 +240,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
               if (nameMatch("Visit the Store.*").getOneNodeInfo(5000)) {
                 日志收集器.添加("成功进入到商品详情。开始浏览");
                 点击广告次数 = 点击广告次数 + 1;
-                关键词广告点击APP版本_浏览详情页面(价格);
+                关键词广告点击APP版本_浏览详情页面(品牌.length > 0 ? 品牌 : 价格, 关键词);
               }
               break;
             } else {
@@ -406,9 +438,15 @@ function 关键词广告点击APP版本_打开AMG并选择环境() {
 }
 
 function 关键词广告点击APP版本_登录亚马逊账号(task) {
-
+  var p = task && task.params ? task.params : {};
   var 手机号码 = String(p.phone != null ? p.phone : "").trim();
   var 亚马逊账号密码 = String(p.password != null ? p.password : "").trim();
+  if (手机号码.length === 0) {
+    throw new Error("登录亚马逊账号: params.phone 为空");
+  }
+  if (亚马逊账号密码.length === 0) {
+    throw new Error("登录亚马逊账号: params.password 为空");
+  }
 
   日志收集器.添加("点击【菜单栏目个人中心图标】")
   var 菜单栏目个人中心图标 = 找图("菜单栏目个人中心图标.png");
@@ -475,7 +513,11 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
   if (!OTP输入框) {
     throw new Error("没找到 [OTP输入框]");
   }
-  var OTP = 运维接口.获取亚马逊账号TOTP码(手机号码);
+  var otpObj = 运维接口.获取亚马逊账号TOTP码(手机号码);
+  var OTP = otpObj && otpObj.totp_code ? String(otpObj.totp_code).trim() : "";
+  if (OTP.length !== 6) {
+    throw new Error("未获取到有效TOTP验证码");
+  }
   日志收集器.添加("点击OTP输入框")
   OTP输入框.clickRandom();
   sleep(随机区间(2000, 5000));

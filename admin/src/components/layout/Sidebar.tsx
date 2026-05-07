@@ -54,11 +54,14 @@ function isTaskHallRoute(pathname: string): boolean {
 const adClickChildren: NavItem[] = [
   { icon: Shuffle, label: '随机关键词', path: '/keywords' },
   { icon: MousePointerClick, label: '搜索产品点击', path: '/tasks/search-click' },
+  { icon: Megaphone, label: '搜索产品点击APP版本', path: '/tasks/search-click-app' },
   { icon: Link2, label: '相关产品点击', path: '/tasks/related-click' },
   { icon: Copy, label: '同类产品点击', path: '/tasks/similar-click' },
   { icon: ScanBarcode, label: '目标 ASIN', path: '/target-asins' },
   { icon: BarChart3, label: '关键词点击统计', path: '/keyword-click-stats' },
   { icon: ListTree, label: 'ASIN 点击记录', path: '/asin-click-records' },
+  { icon: BarChart3, label: 'APP广告点击统计', path: '/app-ad-click-stats' },
+  { icon: ListTree, label: 'APP广告点击记录', path: '/app-ad-click-records' },
 ]
 
 const AD_CLICK_PATHS = adClickChildren.map((c) => c.path)

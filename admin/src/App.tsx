@@ -8,6 +8,7 @@ import { TaskCenterPage } from '@/pages/tasks/TaskCenterPage'
 import { DevicesPage } from '@/pages/devices/DevicesPage'
 import { KeywordsPage } from '@/pages/keywords/KeywordsPage'
 import { ClickTaskPage } from '@/pages/tasks/ClickTaskPage'
+import { AppClickTaskPage } from '@/pages/tasks/AppClickTaskPage'
 import { RegisterTasksPage } from '@/pages/tasks/RegisterTasksPage'
 import { AmazonAccountsPage } from '@/pages/autoRegister/AmazonAccountsPage'
 import { RegisterPhonePoolPage } from '@/pages/resources/RegisterPhonePoolPage'
@@ -16,6 +17,8 @@ import { AddressesPage } from '@/pages/addresses/AddressesPage'
 import { TargetAsinsPage } from '@/pages/targetAsins/TargetAsinsPage'
 import { AsinClickRecordsPage } from '@/pages/targetAsins/AsinClickRecordsPage'
 import { KeywordClickStatsPage } from '@/pages/targetAsins/KeywordClickStatsPage'
+import { AppAdClickStatsPage } from '@/pages/targetAsins/AppAdClickStatsPage'
+import { AppAdClickRecordsPage } from '@/pages/targetAsins/AppAdClickRecordsPage'
 import { TaskReportParsePage } from '@/pages/tools/TaskReportParsePage'
 import { CaptchaAssistPage } from '@/pages/tools/CaptchaAssistPage'
 import { SystemSettingsPage } from '@/pages/settings/SystemSettingsPage'
@@ -106,6 +109,7 @@ function App() {
               <ClickTaskPage taskType="related_click" title="相关产品点击任务" description="字段与分配方式同搜索产品点击（keyword + res_folder_name），仅任务类型不同" />
             }
           />
+          <Route path="tasks/search-click-app" element={<AppClickTaskPage />} />
           <Route
             path="tasks/similar-click"
             element={
@@ -123,6 +127,8 @@ function App() {
           <Route path="target-asins" element={<TargetAsinsPage />} />
           <Route path="keyword-click-stats" element={<KeywordClickStatsPage />} />
           <Route path="asin-click-records" element={<AsinClickRecordsPage />} />
+          <Route path="app-ad-click-stats" element={<AppAdClickStatsPage />} />
+          <Route path="app-ad-click-records" element={<AppAdClickRecordsPage />} />
           <Route path="tools/task-report-parse" element={<TaskReportParsePage />} />
           <Route path="tools/captcha-assist" element={<CaptchaAssistPage />} />
         </Route>

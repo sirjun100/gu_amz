@@ -12,6 +12,7 @@ const TASK_TYPES = [
   { value: '', label: '全部类型' },
   { value: 'register', label: 'register' },
   { value: 'search_click', label: 'search_click' },
+  { value: 'search_click_app', label: 'search_click_app' },
   { value: 'related_click', label: 'related_click' },
   { value: 'similar_click', label: 'similar_click' },
 ]
