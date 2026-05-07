@@ -43,20 +43,61 @@ function main() {
     logd("开启结果: " + result);
     sleep(2000);
 
-    logd("开始执行脚本...")
-
-    // var 节点 = 找可视化节点NAME("Sumobaby Blackout Curtains for Bedroom Portable 42\"x60\",No Drill Black Out Shades with Upgraded Hook&Loop Tapes,100% Blackout Window Cover,Thermal Insulated Blinds for Bedroom,Nursery(1 Panel,Black)");
-    // logd(节点.xpath);
-    // let bounds = 节点.bounds;
-    // let nodeLeft = bounds.left;
-    // let nodeTop = bounds.top;
-    // let nodeRight = bounds.right;
-    // let nodeBottom = bounds.bottom;
-    // logd(`节点边界: L=${nodeLeft}, T=${nodeTop}, R=${nodeRight}, B=${nodeBottom}`);
-
-
-    AMZ_启动亚马逊任务循环();
+    logd("开始执行脚本...");
+    关键词广告点击APP版本_搜索随机关键词浏览并加购();
+    // AMZ_启动亚马逊任务循环();
 }
+
+function 关键词广告点击APP版本_搜索并点击目标任务广告2(){
+    logd(Date.now())
+    // var 节点 = name("Amazon.com: Black Curtains").getOneNodeInfo(5000);
+    // var 节点 = xpath("//node[@type=‘Other'][contains(@name, 'Amazon.com')]").getOneNodeInfo(5000);
+    // var 节点 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0]").getOneNodeInfo(5000);
+    if (!节点) {
+        logw("未找到 Amazon.com : black curtains 节点");
+        return;
+    }
+    // 2. 锁定节点
+    lockNode();
+
+    // 3. 获取所有直接子节点（不包含孙子节点）
+    let childCount = 节点.childCount; // 获取子节点数量
+    logd("父节点的直接子节点数量: " + childCount);
+
+    // 4. 遍历所有直接子节点，筛选符合条件的
+    let resultNodes = [];
+    for (let i = 0; i < childCount; i++) {
+        let child = 节点.child(i); // 使用 child(index) 获取直接子节点
+        if (child) {
+            var bounds = child.bounds;
+            //bounds.top>0 && bounds.bottom<2000 &&
+            if (bounds.right <= 900 && bounds.right>=700){
+                resultNodes.push(child);
+                logd(`${child.type}: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
+            }
+        }
+    }
+
+    logd(Date.now())
+// 5. 释放节点
+    releaseNode();
+    // logd("共找到 " + resultNodes.length + " 个符合条件的直接子节点");
+    // for(let i =0;i<resultNodes.length;i++){
+    //   var node = resultNodes[i];
+    //   var 名称节点 = node.getOneNodeInfo(xpath(".//node[@type='StaticText'][contains(@name, 'Joydeco')]"),5000);
+    //   if(名称节点){
+    //     日志收集器.添加("商标已找到=【"+名称节点.name+"】节点。");
+    //     if(名称节点.name.contains("Sponsored")){
+    //       日志收集器.添加('找到了广告');
+    //     }else{
+    //       日志收集器.添加('没找到广告');
+    //     }
+    //   }else{
+    //     日志收集器.添加('没找到名称节点');
+    //   }
+}
+
+
 
 function autoServiceStart(time) {
     for (let i = 0; i < time; i++) {
