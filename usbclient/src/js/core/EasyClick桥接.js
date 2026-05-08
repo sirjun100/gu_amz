@@ -357,7 +357,7 @@ function 逐字输入(text) {
   var s = text != null ? String(text) : "";
   for (var i = 0; i < s.length; i++) {
     var ch = s.charAt(i);
-    var dur = 随机区间(80, 280);
+    var dur = 随机区间(100, 280);
     if (dur < 40) {
       dur = 40;
     }
