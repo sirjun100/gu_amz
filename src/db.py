@@ -2351,6 +2351,28 @@ class Database:
                     (row.get("device_id"), tt, payload, pd),
                 )
                 return cur.lastrowid
+            if tt in APP_CLICK_TASK_TYPES:
+                p = parse_task_params(row)
+                payload = json.dumps(
+                    {
+                        "keyword": p.get("keyword") or "",
+                        "identify_word": p.get("identify_word") or "",
+                        "identify_prices": p.get("identify_prices") or [],
+                        "phone": p.get("phone") or "",
+                        "account_username": p.get("account_username") or "",
+                        "password": p.get("password") or "",
+                    },
+                    ensure_ascii=False,
+                )
+                pd = int(row.get("persist_data") or 0)
+                cur.execute(
+                    """
+                    INSERT INTO tasks (device_id, task_type, status, params, persist_data)
+                    VALUES (%s, %s, 'pending', %s, %s)
+                    """,
+                    (row.get("device_id"), tt, payload, pd),
+                )
+                return cur.lastrowid
             if tt == "register":
                 cur.execute("SELECT COUNT(*) AS c FROM us_addresses")
                 if cur.fetchone()["c"] == 0:

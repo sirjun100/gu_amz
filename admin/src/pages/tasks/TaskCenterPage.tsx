@@ -546,8 +546,9 @@ export function TaskCenterPage() {
       const r = await postTaskRedo(taskId)
       addToast({ message: `已创建新任务 #${r.new_task_id}`, type: 'success' })
       await loadTasks()
-    } catch {
-      addToast({ message: '再做一次失败（注册类需地址库有数据）', type: 'error' })
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail
+      addToast({ message: msg ? `再做一次失败：${msg}` : '再做一次失败', type: 'error' })
     } finally {
       setBusyId(null)
     }
