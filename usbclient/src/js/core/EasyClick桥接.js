@@ -224,10 +224,26 @@ function 向下滑一次() {
   var h = full.ey - full.y;
   var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
   var yStart = Math.floor(full.y + h * (0.7 + Math.random() * 0.08));
+  var yEnd = Math.floor(full.y + h * (0.26 + Math.random() * 0.1));
+  var dur = 随机区间(480, 920);
+  执行滑动(cx, yStart, cx, yEnd, dur);
+}
+
+/** 手指自下向上滑：列表内容向下滑（看下方） */
+function 向下滑一次_短() {
+  var full =
+      typeof AMZ_取全屏区域 === "function"
+          ? AMZ_取全屏区域()
+          : { x: 0, y: 0, ex: 750, ey: 1334 };
+  var w = full.ex - full.x;
+  var h = full.ey - full.y;
+  var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
+  var yStart = Math.floor(full.y + h * (0.7 + Math.random() * 0.08));
   var yEnd = Math.floor(full.y + h * (0.46 + Math.random() * 0.1));
   var dur = 随机区间(480, 920);
   执行滑动(cx, yStart, cx, yEnd, dur);
 }
+
 
 /** 手指自上向下滑：列表内容向上滚（回顶部方向） */
 function 向上滑一次() {
@@ -238,7 +254,7 @@ function 向上滑一次() {
   var w = full.ex - full.x;
   var h = full.ey - full.y;
   var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
-  var yStart = Math.floor(full.y + h * (0.46 + Math.random() * 0.1));
+  var yStart = Math.floor(full.y + h * (0.26 + Math.random() * 0.1));
   var yEnd = Math.floor(full.y + h * (0.74 + Math.random() * 0.08));
   var dur = 随机区间(480, 920);
   执行滑动(cx, yStart, cx, yEnd, dur);
