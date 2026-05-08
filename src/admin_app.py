@@ -148,9 +148,7 @@ class BatchClickTasksBody(BaseModel):
 
 
 class BatchAppClickTasksBody(BaseModel):
-    keyword: str = Field(..., min_length=1)
-    identify_word: str = Field(..., min_length=1)
-    identify_prices: str = Field("", description="多个价格用英文逗号分隔")
+    identify_pool_id: int = Field(..., ge=1)
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
     per_device_counts: dict[str, int] = Field(default_factory=dict)
@@ -215,6 +213,12 @@ class ClientAppAdClickBody(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=128)
     identify_word: str = Field(..., min_length=1, max_length=512)
     keyword: str | None = Field(None, max_length=512)
+
+
+class AppIdentifyPoolBody(BaseModel):
+    identify_word: str = Field(..., min_length=1, max_length=512)
+    keywords: list[str] = Field(default_factory=list)
+    prices: list[str] = Field(default_factory=list)
 
 
 class ClientAmazonBootstrapBody(BaseModel):
@@ -576,12 +580,9 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
     if not pairs:
         raise HTTPException(status_code=400, detail="娌℃湁鍙垱寤虹殑浠诲姟鏁伴噺")
-    prices = [x.strip() for x in (body.identify_prices or "").split(",") if x and x.strip()]
     try:
         n = db.insert_app_click_tasks_batch(
-            body.keyword.strip(),
-            body.identify_word.strip(),
-            prices,
+            body.identify_pool_id,
             pairs,
             persist_data=body.save_data_record,
         )
@@ -590,6 +591,50 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
             raise HTTPException(status_code=400, detail="亚马逊账号管理中没有 TOTP 状态已设置的可用账号")
         raise
     return {"ok": True, "created": n}
+
+
+@app.get("/api/v1/admin/app-identify-pools")
+async def admin_app_identify_pools(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return {"items": [_serialize_row(r) for r in db.list_app_identify_pools()]}
+
+
+@app.post("/api/v1/admin/app-identify-pools")
+async def admin_create_app_identify_pool(user: CurrentUser, body: AppIdentifyPoolBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    try:
+        pid = db.create_app_identify_pool(body.identify_word, body.keywords, body.prices)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="识别词与搜索词不能为空")
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="识别词已存在")
+    return {"ok": True, "id": pid}
+
+
+@app.delete("/api/v1/admin/app-identify-pools/{pool_id}")
+async def admin_delete_app_identify_pool(user: CurrentUser, pool_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    if not db.delete_app_identify_pool(pool_id):
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return {"ok": True}
+
+
+@app.put("/api/v1/admin/app-identify-pools/{pool_id}")
+async def admin_update_app_identify_pool(user: CurrentUser, pool_id: int, body: AppIdentifyPoolBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    try:
+        ok = db.update_app_identify_pool(pool_id, body.identify_word, body.keywords, body.prices)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="识别词与搜索词不能为空")
+    except pymysql.err.IntegrityError:
+        raise HTTPException(status_code=400, detail="识别词已存在")
+    if not ok:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return {"ok": True}
 
 
 class ImportLinesBody(BaseModel):

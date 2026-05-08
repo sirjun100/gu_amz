@@ -19,6 +19,7 @@ load_dotenv()
 
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
 APP_CLICK_TASK_TYPES = frozenset({"search_click_app"})
+ALL_CLICK_TASK_TYPES = CLICK_TASK_TYPES | APP_CLICK_TASK_TYPES
 
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
 try:
@@ -296,6 +297,7 @@ class Database:
         self._migrate_amazon_accounts()
         self._migrate_captcha_assist_sessions()
         self._migrate_app_ad_click_records()
+        self._migrate_app_identify_pools()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
 
@@ -348,6 +350,22 @@ class Database:
                     INDEX idx_aacr_identify_word (identify_word(191)),
                     INDEX idx_aacr_created (created_at),
                     INDEX idx_aacr_keyword (keyword(191))
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+
+    def _migrate_app_identify_pools(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_identify_pools (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    identify_word VARCHAR(512) NOT NULL,
+                    keywords_json LONGTEXT NOT NULL,
+                    prices_json LONGTEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_aip_identify_word (identify_word(191))
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
@@ -761,7 +779,7 @@ class Database:
                 }
             else:
                 obj = {}
-            if not obj and tt not in CLICK_TASK_TYPES and tt != "register":
+            if not obj and tt not in ALL_CLICK_TASK_TYPES and tt != "register":
                 continue
             cur.execute(
                 "UPDATE tasks SET params = %s WHERE id = %s",
@@ -1701,20 +1719,33 @@ class Database:
 
     def insert_app_click_tasks_batch(
         self,
-        keyword: str,
-        identify_word: str,
-        identify_prices: list[str],
+        identify_pool_id: int,
         device_counts: list[tuple[str, int]],
         persist_data: bool = False,
     ) -> int:
-        kw = (keyword or "").strip()
-        iw = (identify_word or "").strip()
-        prices = [str(x).strip() for x in (identify_prices or []) if str(x).strip()]
-        if not kw or not iw:
+        pool_id = int(identify_pool_id or 0)
+        if pool_id <= 0:
             return 0
         n = 0
         pd = 1 if persist_data else 0
         with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM app_identify_pools WHERE id = %s", (pool_id,))
+            pool = cur.fetchone()
+            if not pool:
+                return 0
+            iw = str(pool.get("identify_word") or "").strip()
+            try:
+                kw_arr = json.loads(pool.get("keywords_json") or "[]")
+            except Exception:
+                kw_arr = []
+            try:
+                prices_arr = json.loads(pool.get("prices_json") or "[]")
+            except Exception:
+                prices_arr = []
+            keywords = [str(x).strip() for x in kw_arr if str(x).strip()]
+            prices = [str(x).strip() for x in prices_arr if str(x).strip()]
+            if not iw or len(keywords) == 0:
+                return 0
             for device_id, count in device_counts:
                 c = max(0, int(count))
                 did = device_id.strip() if device_id else ""
@@ -1724,11 +1755,14 @@ class Database:
                     account = self._pick_random_totp_ready_amazon_account_cur(cur)
                     if not account:
                         raise ValueError("NO_TOTP_READY_AMAZON_ACCOUNT")
+                    picks = random.sample(keywords, 3) if len(keywords) >= 3 else list(keywords)
                     payload = json.dumps(
                         {
-                            "keyword": kw,
+                            "keyword": picks[0],
+                            "app_keywords": picks,
                             "identify_word": iw,
                             "identify_prices": prices,
+                            "identify_pool_id": pool_id,
                             "phone": (account.get("phone") or "").strip(),
                             "account_username": (account.get("account_username") or "").strip(),
                             "password": (account.get("account_password") or "").strip(),
@@ -1744,6 +1778,66 @@ class Database:
                     )
                     n += 1
         return n
+
+    def list_app_identify_pools(self):
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM app_identify_pools ORDER BY id DESC")
+            rows = cur.fetchall()
+        out: list[dict] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["keywords"] = json.loads(d.get("keywords_json") or "[]")
+            except Exception:
+                d["keywords"] = []
+            try:
+                d["prices"] = json.loads(d.get("prices_json") or "[]")
+            except Exception:
+                d["prices"] = []
+            out.append(d)
+        return out
+
+    def create_app_identify_pool(self, identify_word: str, keywords: list[str], prices: list[str]) -> int:
+        iw = (identify_word or "").strip()
+        kws = [str(x).strip() for x in (keywords or []) if str(x).strip()]
+        prs = [str(x).strip() for x in (prices or []) if str(x).strip()]
+        if not iw or len(kws) == 0:
+            raise ValueError("BAD_IDENTIFY_POOL")
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO app_identify_pools (identify_word, keywords_json, prices_json)
+                VALUES (%s, %s, %s)
+                """,
+                (iw, json.dumps(kws, ensure_ascii=False), json.dumps(prs, ensure_ascii=False)),
+            )
+            return int(cur.lastrowid)
+
+    def delete_app_identify_pool(self, pool_id: int) -> bool:
+        pid = int(pool_id or 0)
+        if pid <= 0:
+            return False
+        with self._cursor() as (conn, cur):
+            cur.execute("DELETE FROM app_identify_pools WHERE id = %s", (pid,))
+            return int(cur.rowcount or 0) > 0
+
+    def update_app_identify_pool(self, pool_id: int, identify_word: str, keywords: list[str], prices: list[str]) -> bool:
+        pid = int(pool_id or 0)
+        iw = (identify_word or "").strip()
+        kws = [str(x).strip() for x in (keywords or []) if str(x).strip()]
+        prs = [str(x).strip() for x in (prices or []) if str(x).strip()]
+        if pid <= 0 or not iw or len(kws) == 0:
+            raise ValueError("BAD_IDENTIFY_POOL")
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE app_identify_pools
+                SET identify_word = %s, keywords_json = %s, prices_json = %s
+                WHERE id = %s
+                """,
+                (iw, json.dumps(kws, ensure_ascii=False), json.dumps(prs, ensure_ascii=False), pid),
+            )
+            return int(cur.rowcount or 0) > 0
 
     def insert_app_ad_click_record(self, identify_word: str, keyword: str | None, device_id: str | None) -> dict | None:
         iw = (identify_word or "").strip()[:512]
@@ -2582,7 +2676,7 @@ class Database:
                 }
                 if tt == "register":
                     self._merge_task_saved_record_for_source_cur(cur, task_id, merge_finish)
-                elif tt in CLICK_TASK_TYPES and success:
+                elif tt in ALL_CLICK_TASK_TYPES and success:
                     cur.execute(
                         "DELETE FROM task_saved_records WHERE source_task_id = %s AND task_type = %s",
                         (task_id, tt),

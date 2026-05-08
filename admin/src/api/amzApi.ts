@@ -101,9 +101,7 @@ export function postBatchClick(body: {
 }
 
 export function postBatchClickApp(body: {
-  keyword: string
-  identify_word: string
-  identify_prices: string
+  identify_pool_id: number
   mode: 'manual' | 'smart'
   device_ids: string[]
   per_device_counts: Record<string, number>
@@ -111,6 +109,32 @@ export function postBatchClickApp(body: {
   save_data_record?: boolean
 }) {
   return post<{ ok: boolean; created: number }>('/admin/tasks/batch-click-app', body)
+}
+
+export type AppIdentifyPoolRow = {
+  id: number
+  identify_word: string
+  keywords: string[]
+  prices: string[]
+}
+
+export function fetchAppIdentifyPools() {
+  return get<{ items: AppIdentifyPoolRow[] }>('/admin/app-identify-pools')
+}
+
+export function createAppIdentifyPool(body: { identify_word: string; keywords: string[]; prices: string[] }) {
+  return post<{ ok: boolean; id: number }>('/admin/app-identify-pools', body)
+}
+
+export function deleteAppIdentifyPool(id: number) {
+  return del<{ ok: boolean }>(`/admin/app-identify-pools/${id}`)
+}
+
+export function updateAppIdentifyPool(
+  id: number,
+  body: { identify_word: string; keywords: string[]; prices: string[] }
+) {
+  return put<{ ok: boolean }>(`/admin/app-identify-pools/${id}`, body)
 }
 
 export function postBatchRegister(body: {

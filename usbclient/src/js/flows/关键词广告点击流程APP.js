@@ -93,7 +93,19 @@ function 关键词广告点击APP版本_浏览详情页面(识别词, 关键词)
 
 function 关键词广告点击APP版本_搜索并点击目标任务广告(task) {
   var p = task && task.params ? task.params : {};
-  var 关键词 = String(p.keyword != null ? p.keyword : "").trim();
+  var 搜索词列表 = [];
+  if (p.app_keywords != null && typeof p.app_keywords.length === "number") {
+    for (var k0 = 0; k0 < p.app_keywords.length; k0++) {
+      var kw0 = String(p.app_keywords[k0]).trim();
+      if (kw0.length > 0) {
+        搜索词列表.push(kw0);
+      }
+    }
+  }
+  var 回退关键词 = String(p.keyword != null ? p.keyword : "").trim();
+  if (搜索词列表.length === 0 && 回退关键词.length > 0) {
+    搜索词列表.push(回退关键词);
+  }
   var 品牌 = String(p.identify_word != null ? p.identify_word : "").trim();
   var 价格列表 = [];
   if (p.identify_prices != null) {
@@ -114,59 +126,61 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
       }
     }
   }
-  if (关键词.length === 0) {
-    throw new Error("关键词广告点击APP版本: params.keyword 为空");
+  if (搜索词列表.length === 0) {
+    throw new Error("关键词广告点击APP版本: params.app_keywords / params.keyword 为空");
   }
   if (品牌.length === 0 && 价格列表.length === 0) {
     throw new Error("关键词广告点击APP版本: identify_word 与 identify_prices 不能同时为空");
   }
-  日志收集器.添加("[关键词广告APP版本] 步骤5 搜索并点击广告 keyword=" + 关键词);
+  for (var kwIndex = 0; kwIndex < 搜索词列表.length; kwIndex++) {
+    var 关键词 = 搜索词列表[kwIndex];
+    日志收集器.添加("[关键词广告APP版本] 步骤5 搜索并点击广告 keyword=" + 关键词 + " (" + (kwIndex + 1) + "/" + 搜索词列表.length + ")");
 
-  日志收集器.添加("点击搜索框");
-  var 搜索框 = name("searchTextView").getOneNodeInfo(5000);
-  if (!搜索框) {
-    日志收集器.添加("搜索框未找到,改用直接点击坐标");
-    clickPoint(576, 152);
-    sleep(随机区间(4000, 6000));
-  } else {
-    clickPoint(576, 152);
-    搜索框.clickCenter();
-    sleep(随机区间(4000, 6000))
-  }
+    日志收集器.添加("点击搜索框");
+    var 搜索框 = name("searchTextView").getOneNodeInfo(5000);
+    if (!搜索框) {
+      日志收集器.添加("搜索框未找到,改用直接点击坐标");
+      clickPoint(576, 152);
+      sleep(随机区间(4000, 6000));
+    } else {
+      clickPoint(576, 152);
+      搜索框.clickCenter();
+      sleep(随机区间(4000, 6000))
+    }
 
-  日志收集器.添加("点击清除按钮");
-  var 清除按钮 = 找图("清除关键词.png");
-  if (!清除按钮) {
-    日志收集器.添加("未找到清楚按钮，点击坐标760，152");
-    clickPoint(760, 152);
-    sleep(随机区间(2000, 3000));
-  } else {
-    日志收集器.添加("找到清楚按钮，点击清除按钮");
-    clickPoint(清除按钮.x, 清除按钮.y);
-    sleep(随机区间(2000, 3000));
-  }
+    日志收集器.添加("点击清除按钮");
+    var 清除按钮 = 找图("清除关键词.png");
+    if (!清除按钮) {
+      日志收集器.添加("未找到清楚按钮，点击坐标760，152");
+      clickPoint(760, 152);
+      sleep(随机区间(2000, 3000));
+    } else {
+      日志收集器.添加("找到清楚按钮，点击清除按钮");
+      clickPoint(清除按钮.x, 清除按钮.y);
+      sleep(随机区间(2000, 3000));
+    }
 
-  日志收集器.添加("开始输入关键词");
-  逐字输入(关键词);
-  sleep(随机区间(1000, 3000));
-  ioHIDEvent("0x07", "0x28", 0.2);
-  sleep(随机区间(5000, 8000));
+    日志收集器.添加("开始输入关键词");
+    逐字输入(关键词);
+    sleep(随机区间(1000, 3000));
+    ioHIDEvent("0x07", "0x28", 0.2);
+    sleep(随机区间(5000, 8000));
 
-  var 任务详情开始时间 = Date.now();
-  var 点击广告次数 = 0;
+    var 任务详情开始时间 = Date.now();
+    var 点击广告次数 = 0;
 
 
-  日志收集器.添加("正在检测界面是否存在品牌======"+品牌);
-  var 是否有品牌默认有 = true
-  var 品牌节点 = xpath("//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]").getOneNodeInfo(5000);
-  if (!品牌节点) {
-    是否有品牌默认有 = false;
-    日志收集器.添加("页面上不存在品牌，通过价格识别");
-  } else {
-    日志收集器.添加("页面上存在品牌，通过品牌识别");
-  }
+    日志收集器.添加("正在检测界面是否存在品牌======"+品牌);
+    var 是否有品牌默认有 = true
+    var 品牌节点 = xpath("//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]").getOneNodeInfo(5000);
+    if (!品牌节点) {
+      是否有品牌默认有 = false;
+      日志收集器.添加("页面上不存在品牌，通过价格识别");
+    } else {
+      日志收集器.添加("页面上存在品牌，通过品牌识别");
+    }
 
-  while (true) {
+    while (true) {
     if (点击广告次数 >= 3) {
       日志收集器.添加("[关键词广告APP版本] 步骤5 已达最多点击次数 3，结束");
       break;
@@ -241,8 +255,10 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
         }
       }
     }
-    releaseNode();
-    向下滑一次();
+      releaseNode();
+      向下滑一次();
+    }
+    sleep(随机区间(1500, 3000));
   }
   日志收集器.添加("[关键词广告APP版本] 步骤5 关键词广告点击APP版本_搜索并点击目标任务广告 完成");
 }
