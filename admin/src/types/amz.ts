@@ -72,6 +72,22 @@ export type AsinKeywordClickStatRow = {
   stats_date: string
 }
 
+export type AppAdClickRecordRow = {
+  id: number
+  identify_word: string
+  keyword: string | null
+  device_id: string | null
+  device_alias?: string | null
+  created_at: string | null
+}
+
+export type AppAdKeywordClickStatRow = {
+  keyword: string
+  identify_word: string
+  click_count: number
+  stats_date: string
+}
+
 /** 手机接码库一行（任务创建后 consumed_at / register_task_id 有值） */
 export type RegisterPhonePoolRow = {
   id: number

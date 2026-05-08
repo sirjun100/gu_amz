@@ -25,6 +25,8 @@ function formatParamsFullJson(params: unknown): string {
 
 const PARAM_DISPLAY_KEY_ORDER = [
   'keyword',
+  'identify_word',
+  'identify_prices',
   'res_folder_name',
   'phone',
   'username',
@@ -111,6 +113,7 @@ const STATUS_OPTIONS = [
 const TYPE_OPTIONS = [
   { value: '', label: '全部类型' },
   { value: 'search_click', label: '搜索产品点击' },
+  { value: 'search_click_app', label: '搜索产品点击APP版本' },
   { value: 'related_click', label: '相关产品点击' },
   { value: 'similar_click', label: '同类产品点击' },
   { value: 'register', label: '自动注册' },

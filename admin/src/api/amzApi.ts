@@ -13,6 +13,8 @@ import type {
   TargetAsinRow,
   AsinClickRecordRow,
   AsinKeywordClickStatRow,
+  AppAdClickRecordRow,
+  AppAdKeywordClickStatRow,
   RegisterPhonePoolRow,
   RegisterEmailPoolRow,
   RegisterCodePoolsStats,
@@ -96,6 +98,19 @@ export function postBatchClick(body: {
   save_data_record?: boolean
 }) {
   return post<{ ok: boolean; created: number }>('/admin/tasks/batch-click', body)
+}
+
+export function postBatchClickApp(body: {
+  keyword: string
+  identify_word: string
+  identify_prices: string
+  mode: 'manual' | 'smart'
+  device_ids: string[]
+  per_device_counts: Record<string, number>
+  total_count: number
+  save_data_record?: boolean
+}) {
+  return post<{ ok: boolean; created: number }>('/admin/tasks/batch-click-app', body)
 }
 
 export function postBatchRegister(body: {
@@ -285,6 +300,54 @@ export function fetchAsinKeywordClickStatsPage(params: {
   if (start_date) qs.set('start_date', start_date)
   if (end_date) qs.set('end_date', end_date)
   return get<PaginatedRows<AsinKeywordClickStatRow>>(`/admin/asin-keyword-click-stats?${qs}`)
+}
+
+export function fetchAppAdClickRecordsPage(params: {
+  page: number
+  perPage?: number
+  q?: string
+  identify_word?: string
+  start_date?: string
+  end_date?: string
+}) {
+  const { page, perPage = 40, q, identify_word, start_date, end_date } = params
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (q) qs.set('q', q)
+  if (identify_word) qs.set('identify_word', identify_word)
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<PaginatedRows<AppAdClickRecordRow>>(`/admin/app-ad-click-records?${qs}`)
+}
+
+export function fetchAppAdClickRecordKeywords(start_date?: string, end_date?: string) {
+  const qs = new URLSearchParams()
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<{ items: string[] }>(`/admin/app-ad-click-record-keywords${qs.toString() ? `?${qs}` : ''}`)
+}
+
+export function fetchAppAdClickRecordSearchKeywords(start_date?: string, end_date?: string) {
+  const qs = new URLSearchParams()
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<{ items: string[] }>(`/admin/app-ad-click-record-search-keywords${qs.toString() ? `?${qs}` : ''}`)
+}
+
+export function fetchAppAdKeywordClickStatsPage(params: {
+  page: number
+  perPage?: number
+  keyword?: string
+  identify_word?: string
+  start_date?: string
+  end_date?: string
+}) {
+  const { page, perPage = 40, keyword, identify_word, start_date, end_date } = params
+  const qs = new URLSearchParams({ page: String(page), per_page: String(perPage) })
+  if (keyword) qs.set('keyword', keyword)
+  if (identify_word) qs.set('identify_word', identify_word)
+  if (start_date) qs.set('start_date', start_date)
+  if (end_date) qs.set('end_date', end_date)
+  return get<PaginatedRows<AppAdKeywordClickStatRow>>(`/admin/app-ad-keyword-click-stats?${qs}`)
 }
 
 export async function importAddressesXlsx(file: File) {
