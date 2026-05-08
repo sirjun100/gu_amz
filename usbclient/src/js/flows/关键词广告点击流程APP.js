@@ -6,47 +6,47 @@ function 关键词广告点击流程APP版本(task) {
   var tid = task != null && task.id != null ? task.id : "?";
   try {
 
-    日志收集器.添加("[关键词广告] 开始 task_id=" + tid);
+    日志收集器.添加("[关键词广告APP版本] 开始 task_id=" + tid);
     关键词广告点击APP版本_返回到HOME界面();
 
-    日志收集器.添加("[关键词广告] 步骤1/5 打开 AMG 并选择环境");
+    日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
     if (!关键词广告点击APP版本_打开AMG并选择环境()) {
       throw new Error("步骤1 失败：打开 AMG 并选择环境");
     }
 
-    日志收集器.添加("[关键词广告] 步骤1 完成；返回桌面");
+    日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
     关键词广告点击APP版本_返回到HOME界面();
 
-    日志收集器.添加("[关键词广告] 步骤2/5 打开亚马逊APP");
+    日志收集器.添加("[关键词广告APP版本] 步骤2/5 打开亚马逊APP");
     if (!关键词广告点击APP版本_打开亚马逊APP()) {
       throw new Error("步骤2 失败：打开 亚马逊APP");
     }
 
-    日志收集器.添加("[关键词广告] 步骤2/5 登录亚马逊账号");
+    日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
     if (!关键词广告点击APP版本_登录亚马逊账号(task)) {
       throw new Error("步骤2 失败：登录亚马逊账号");
     }
 
-    日志收集器.添加("[关键词广告] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
+    日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
     if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
       throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
     }
 
-    日志收集器.添加("[关键词广告] 步骤4/5 随机关键词搜索浏览");
+    日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
     if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
       throw new Error("步骤4 失败：随机关键词浏览或加购");
     }
 
-    日志收集器.添加("[关键词广告] 步骤5/5 关键词广告点击APP版本_搜索并点击目标任务广告");
+    日志收集器.添加("[关键词广告APP版本] 步骤5/5 关键词广告点击APP版本_搜索并点击目标任务广告");
     关键词广告点击APP版本_搜索并点击目标任务广告(task);
 
-    日志收集器.添加("[关键词广告] 全部步骤完成 task_id=" + tid);
+    日志收集器.添加("[关键词广告APP版本] 全部步骤完成 task_id=" + tid);
   } finally {
     try {
-      appKillByBundleIdEx(AMZ_CONFIG.bundleIdChrome);
-      logd("[关键词广告] 已尝试关闭 Chrome");
+      appKillByBundleIdEx("com.amazon.Amazon");
+      logd("[关键词广告APP版本] 已尝试关闭 亚马逊APP");
     } catch (eKill) {
-      logw("[关键词广告] 关闭 Chrome: " + eKill);
+      logw("[关键词广告APP版本] 关闭 亚马逊APP: " + eKill);
     }
   }
 }
@@ -56,14 +56,13 @@ function 关键词广告点击流程APP版本(task) {
  */
 
 function 关键词广告点击APP版本_浏览详情页面(识别词, 关键词) {
-
   var rep = 运维接口.上报APP广告点击(识别词, 关键词 || "");
   if (rep != null && rep.ok === true) {
     日志收集器.添加(
-      "[关键词广告][APP] 识别词上报成功 " + 识别词 + " total=" + rep.total_clicks + " today=" + rep.today_clicks
+      "[关键词广告APP版本][APP] 识别词上报成功 " + 识别词 + " total=" + rep.total_clicks + " today=" + rep.today_clicks
     );
   } else {
-    日志收集器.添加("[关键词广告][APP] 识别词上报失败或异常 identify_word=" + 识别词);
+    日志收集器.添加("[关键词广告APP版本][APP] 识别词上报失败或异常 identify_word=" + 识别词);
   }
 
   var 进入详情开始时间 = Date.now();
@@ -123,7 +122,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
   if (品牌.length === 0 && 价格列表.length === 0) {
     throw new Error("关键词广告点击APP版本: identify_word 与 identify_prices 不能同时为空");
   }
-  日志收集器.添加("[关键词广告] 步骤5 搜索并点击广告 keyword=" + 关键词);
+  日志收集器.添加("[关键词广告APP版本] 步骤5 搜索并点击广告 keyword=" + 关键词);
 
   日志收集器.添加("点击搜索框");
   var 搜索框 = name("searchTextView").getOneNodeInfo(5000);
@@ -171,12 +170,12 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
 
   while (true) {
     if (点击广告次数 >= 3) {
-      日志收集器.添加("[关键词广告] 步骤5 已达最多点击次数 3，结束");
+      日志收集器.添加("[关键词广告APP版本] 步骤5 已达最多点击次数 3，结束");
       break;
     }
     var 执行分钟 = 获取分钟的值(任务详情开始时间);
     if (执行分钟 > 点击广告次数 * 4 + 10) {
-      日志收集器.添加("[关键词广告] 步骤5 超过时间预算（约 " + 执行分钟 + " 分钟），结束");
+      日志收集器.添加("[关键词广告APP版本] 步骤5 超过时间预算（约 " + 执行分钟 + " 分钟），结束");
       break;
     }
 
@@ -253,19 +252,19 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
     releaseNode();
     向下滑一次();
   }
-  日志收集器.添加("[关键词广告] 步骤5 关键词广告点击APP版本_搜索并点击目标任务广告 完成");
+  日志收集器.添加("[关键词广告APP版本] 步骤5 关键词广告点击APP版本_搜索并点击目标任务广告 完成");
 }
 
 function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
-  日志收集器.添加("[关键词广告] 步骤4 请求随机关键词");
+  日志收集器.添加("[关键词广告APP版本] 步骤4 请求随机关键词");
   var rkPool = 运维接口.随机关键词(3);
   var keywords =
     rkPool != null && rkPool.keywords != null && rkPool.keywords.length > 0 ? rkPool.keywords : [];
   if (keywords.length === 0) {
-    日志收集器.添加("[关键词广告] 步骤4 随机关键词接口无词");
+    日志收集器.添加("[关键词广告APP版本] 步骤4 随机关键词接口无词");
     throw new Error("关键词库随机搜索浏览或加购: 无关键词");
   }
-  日志收集器.添加("[关键词广告] 步骤4 候选词: " + keywords.join(", "));
+  日志收集器.添加("[关键词广告APP版本] 步骤4 候选词: " + keywords.join(", "));
 
   var rkOne = 运维接口.随机关键词(1);
   var pick = "";
@@ -275,11 +274,11 @@ function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
   if (pick.length === 0) {
     pick = String(keywords[0]).trim();
   }
-  日志收集器.添加("[关键词广告] 步骤4 选用关键词: " + pick);
+  日志收集器.添加("[关键词广告APP版本] 步骤4 选用关键词: " + pick);
 
   var 搜索输入框 = id("searchTextField").getOneNodeInfo(5000);
   if (!搜索输入框) {
-    日志收集器.添加("[关键词广告] 步骤4 未找到搜索框 (name=search)");
+    日志收集器.添加("[关键词广告APP版本] 步骤4 未找到搜索框 (name=search)");
     throw new Error("关键词库随机搜索浏览或加购: 未找到搜索框");
   }
 
@@ -287,7 +286,7 @@ function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
   sleep(随机区间(2000, 5000));
   逐字输入(pick);
   var s = pick;
-  日志收集器.添加("[关键词广告] 步骤4 已逐字输入，长度 " + s.length);
+  日志收集器.添加("[关键词广告APP版本] 步骤4 已逐字输入，长度 " + s.length);
   sleep(随机区间(2000, 4000));
   ioHIDEvent("0x07", "0x28", 0.2);
   sleep(随机区间(5000, 10000));
@@ -295,7 +294,7 @@ function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
   var start_time = Date.now();
   var idx = 0;
   for (idx = 0; idx < 5; idx++) {
-    日志收集器.添加("[关键词广告] 随机关键词浏览(第" + idx + "次)向下滑一次");
+    日志收集器.添加("[关键词广告APP版本] 随机关键词浏览(第" + idx + "次)向下滑一次");
     向下滑一次();
     sleep(随机区间(4000, 8000));
   }
@@ -339,12 +338,12 @@ function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
       // }
     }
     var 浏览分钟 = 获取分钟的值(start_time);
-    日志收集器.添加("[关键词广告] 已在随机关键词页面停留" + 浏览分钟 + "分钟");
+    日志收集器.添加("[关键词广告APP版本] 已在随机关键词页面停留" + 浏览分钟 + "分钟");
     if (浏览分钟 > 4) {
       break;
     }
   }
-  日志收集器.添加("[关键词广告] 步骤4 完成");
+  日志收集器.添加("[关键词广告APP版本] 步骤4 完成");
   return true;
 }
 
@@ -363,7 +362,7 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
   var start_time = Date.now();
   var hi = 0;
   for (hi = 0; hi < 5; hi++) {
-    日志收集器.添加("[关键词广告] 首页浏览(第" + hi + "次)向下滑一次");
+    日志收集器.添加("[关键词广告APP版本] 首页浏览(第" + hi + "次)向下滑一次");
     向下滑一次();
     sleep(随机区间(4000, 6000));
   }
@@ -379,14 +378,14 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
     }
 
     var 首页分钟 = 获取分钟的值(start_time);
-    日志收集器.添加("[关键词广告] 已在首页停留" + 首页分钟 + "分钟");
+    日志收集器.添加("[关键词广告APP版本] 已在首页停留" + 首页分钟 + "分钟");
     if (首页分钟 > 2) {
       break;
     }
   }
 
   while (true) {
-    日志收集器.添加("[关键词广告] 首页正在滑行到最最顶端！！！");
+    日志收集器.添加("[关键词广告APP版本] 首页正在滑行到最最顶端！！！");
     var 搜索节点首页 = 找节点("search");
     if (搜索节点首页) {
       break;
@@ -395,44 +394,44 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
     sleep(随机区间(4000, 8000));
   }
 
-  日志收集器.添加("[关键词广告] 步骤3 完成");
+  日志收集器.添加("[关键词广告APP版本] 步骤3 完成");
   return true;
 }
 
 function 关键词广告点击APP版本_打开AMG并选择环境() {
   var 选择环境状态 = false;
   var attempt = 0;
-  for (attempt = 0; attempt < 3; attempt++) {
-    logd("[关键词广告] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
+  for (attempt = 0; attempt < 1; attempt++) {
+    logd("[关键词广告APP版本] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
     var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
     if (AMG应用图标按钮) {
       clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
       sleep(3000);
-      var 备份记录按钮 = name("备份记录").getOneNodeInfo(5000);
-      var 下一条按钮 = name("下一条").getOneNodeInfo(5000);
-      if (备份记录按钮) {
-        备份记录按钮.clickCenter();
-        sleep(2000);
-        下一条按钮 = name("下一条").getOneNodeInfo(5000);
+
+      日志收集器.添加("判断当前页面");
+      var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
+      if(AMG){
+        日志收集器.添加("在环境列表页面");
+        AMG.clickCenter();
+        sleep(10000);
+      }else{
+        日志收集器.添加("在首页");
       }
-      if (下一条按钮) {
-        下一条按钮 = name("下一条").getOneNodeInfo(5000);
-        if (下一条按钮) {
-          下一条按钮.clickCenter();
-          sleep(6000);
-          选择环境状态 = true;
-        }
-      }
+
+      日志收集器.添加("AMG-点击一键新机");
+      var 一键新机 = name("一键新机").getOneNodeInfo(5000);
+      一键新机.clickCenter();
+      sleep(15000);
+
+      return true;
+
     }
     if (选择环境状态) {
-      日志收集器.添加("[关键词广告] 步骤1 AMG 选环境成功");
+      日志收集器.添加("[关键词广告APP版本] 步骤1 AMG 选环境成功");
       break;
     }
     sleep(2000);
-    if (!关键词广告点击APP版本_返回到HOME界面()) {
-      日志收集器.添加("[关键词广告] 步骤1 回桌面失败");
-      return false;
-    }
+
   }
   return 选择环境状态;
 }
@@ -555,11 +554,11 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     var r = appLaunchEx("com.amazon.Amazon", "1");
     sleep(5000);
     if (r > 0) {
-      日志收集器.添加("[注册亚马逊] 步骤2 打开 亚马逊APP 成功（第 " + (i + 1) + " 次）");
+      日志收集器.添加("[关键词广告APP版本] 步骤2 打开 亚马逊APP 成功（第 " + (i + 1) + " 次）");
       launched = true;
       break;
     }
-    日志收集器.添加("[注册亚马逊] 步骤2 appLaunchEx 失败（第 " + (i + 1) + " 次）");
+    日志收集器.添加("[关键词广告APP版本] 步骤2 appLaunchEx 失败（第 " + (i + 1) + " 次）");
   }
 
 
@@ -569,7 +568,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
   var 打开亚马逊跳转到登录页面图标 = 找图("打开亚马逊跳转到登录页面图标.png");
 
   if (亚马逊APP首页识别图标) {
-    日志收集器.添加("[注册亚马逊] 亚马逊APP已准备就绪");
+    日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
 
@@ -577,7 +576,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     var 亚马逊跳转到登录页面取消标志 = 找图("亚马逊跳转到登录页面取消标志.png");
     clickPoint(亚马逊跳转到登录页面取消标志.x, 亚马逊跳转到登录页面取消标志.y);
     sleep(3000);
-    日志收集器.添加("[注册亚马逊] 亚马逊APP已准备就绪");
+    日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
   var 亚马逊APP图标 = 找图("亚马逊APP图标.png");
@@ -585,7 +584,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
   if (亚马逊APP图标) {
     clickPoint(亚马逊APP图标.x, 亚马逊APP图标.y);
     sleep(5000);
-    日志收集器.添加("[注册亚马逊] 步骤2 未识别 亚马逊首页 界面，尝试点击桌面图标");
+    日志收集器.添加("[关键词广告APP版本] 步骤2 未识别 亚马逊首页 界面，尝试点击桌面图标");
   }
 
   //直接打开首页
@@ -594,7 +593,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
   打开亚马逊跳转到登录页面图标 = 找图("打开亚马逊跳转到登录页面图标.png");
 
   if (亚马逊APP首页识别图标) {
-    日志收集器.添加("[注册亚马逊] 亚马逊APP已准备就绪");
+    日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
 
@@ -602,10 +601,10 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     var 亚马逊跳转到登录页面取消标志 = 找图("亚马逊跳转到登录页面取消标志.png");
     clickPoint(亚马逊跳转到登录页面取消标志.x, 亚马逊跳转到登录页面取消标志.y);
     sleep(3000);
-    日志收集器.添加("[注册亚马逊] 亚马逊APP已准备就绪");
+    日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
-  日志收集器.添加("[注册亚马逊] 亚马逊APP打开异常~!! 请检查");
+  日志收集器.添加("[关键词广告APP版本] 亚马逊APP打开异常~!! 请检查");
   return false;
 
 }
@@ -614,14 +613,17 @@ function 关键词广告点击APP版本_返回到HOME界面() {
   var FLAG = false;
   var i = 0;
   for (i = 0; i < 3; i++) {
-    var success = home();
+    startEnv();
+    sleep(3000);
+    var success = home(); //agentEvent.pressKey("home");
+    日志收集器.添加("[关键词广告APP版本，状态："+success+"] 被点击，等待8秒");
+    sleep(8000);
     if (success) {
       FLAG = true;
-      logd("[关键词广告] Home 键成功");
+      日志收集器.添加("[关键词广告APP版本] Home 键成功");
       break;
     }
-    loge("[关键词广告] Home 键失败 " + (i + 1));
+    日志收集器.添加("[关键词广告APP版本] Home 键失败 " + (i + 1));
   }
-  sleep(5000);
   return FLAG;
 }
