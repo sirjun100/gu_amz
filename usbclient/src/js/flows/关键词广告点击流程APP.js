@@ -6,36 +6,34 @@ function 关键词广告点击流程APP版本(task) {
   var tid = task != null && task.id != null ? task.id : "?";
   try {
 
-    日志收集器.添加("[关键词广告APP版本] 开始 task_id=" + tid);
-    关键词广告点击APP版本_返回到HOME界面();
-
-    日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
-    if (!关键词广告点击APP版本_打开AMG并选择环境()) {
-      throw new Error("步骤1 失败：打开 AMG 并选择环境");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
-    关键词广告点击APP版本_返回到HOME界面();
-
-    日志收集器.添加("[关键词广告APP版本] 步骤2/5 打开亚马逊APP");
-    if (!关键词广告点击APP版本_打开亚马逊APP()) {
-      throw new Error("步骤2 失败：打开 亚马逊APP");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
-    if (!关键词广告点击APP版本_登录亚马逊账号(task)) {
-      throw new Error("步骤2 失败：登录亚马逊账号");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
-    if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
-      throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
-    if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
-      throw new Error("步骤4 失败：随机关键词浏览或加购");
-    }
+    // 日志收集器.添加("[关键词广告APP版本] 开始 task_id=" + tid);
+    // 关键词广告点击APP版本_返回到HOME界面();
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
+    // if (!关键词广告点击APP版本_打开AMG并选择环境()) {
+    //   throw new Error("步骤1 失败：打开 AMG 并选择环境");
+    // }
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
+    // 关键词广告点击APP版本_返回到HOME界面();
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤2/5 打开亚马逊APP");
+    // if (!关键词广告点击APP版本_打开亚马逊APP()) {
+    //   throw new Error("步骤2 失败：打开 亚马逊APP");
+    // }
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
+    // 关键词广告点击APP版本_登录亚马逊账号(task);
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
+    // if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
+    //   throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
+    // }
+    //
+    // 日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
+    // if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
+    //   throw new Error("步骤4 失败：随机关键词浏览或加购");
+    // }
 
     日志收集器.添加("[关键词广告APP版本] 步骤5/5 关键词广告点击APP版本_搜索并点击目标任务广告");
     关键词广告点击APP版本_搜索并点击目标任务广告(task);
@@ -158,7 +156,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
   var 点击广告次数 = 0;
 
 
-  日志收集器.添加("正在检测界面是否存在品牌======");
+  日志收集器.添加("正在检测界面是否存在品牌======"+品牌);
   var 是否有品牌默认有 = true
   var 品牌节点 = xpath("//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]").getOneNodeInfo(5000);
   if (!品牌节点) {
@@ -197,7 +195,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
         var bounds = child.bounds;
         if (bounds.top > 100 && bounds.bottom < 1800 && bounds.right <= 900 && bounds.right >= 700) {
           resultNodes.push(child);
-          logd(`${child.name}: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
+          logd(`$Other: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
         }
       }
     }
@@ -206,18 +204,15 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
     for (let i = 0; i < resultNodes.length; i++) {
       var node = resultNodes[i];
       if (是否有品牌默认有) {
-        var 名称节点 = node.getOneNodeInfo(xpath(".//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]"), 5000);
+        var 名称节点 = node.getOneNodeInfo(xpath(".//node[contains(@name, '" + 品牌 + "')]"), 5000);
         if (名称节点) {
           日志收集器.添加("商标已找到=【" + 名称节点.name + "】节点。");
           if (名称节点.name.contains("Sponsored")) {
             日志收集器.添加('检测到商标存在广告-有广告');
             名称节点.clickCenter();
             sleep(随机区间(4000, 8000));
-            if (nameMatch("Visit the Store.*").getOneNodeInfo(5000)) {
-              日志收集器.添加("成功进入到商品详情。开始浏览");
-              点击广告次数 = 点击广告次数 + 1;
-              关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
-            }
+            点击广告次数 = 点击广告次数 + 1;
+            关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
             break;
           } else {
             日志收集器.添加('没有检测到商标存在广告-无广告');
@@ -236,11 +231,8 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
               日志收集器.添加('检测到价格节点存在广告-有广告');
               node.clickCenter();
               sleep(随机区间(4000, 8000));
-              if (nameMatch("Visit the Store.*").getOneNodeInfo(5000)) {
-                日志收集器.添加("成功进入到商品详情。开始浏览");
-                点击广告次数 = 点击广告次数 + 1;
-                关键词广告点击APP版本_浏览详情页面(品牌.length > 0 ? 品牌 : 价格, 关键词);
-              }
+              点击广告次数 = 点击广告次数 + 1;
+              关键词广告点击APP版本_浏览详情页面(价格, 关键词);
               break;
             } else {
               日志收集器.添加('检测到价格节点不存在广告-无广告');
@@ -350,7 +342,7 @@ function 关键词广告点击APP版本_搜索随机关键词浏览并加购() {
 function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
 
   日志收集器.添加("点击首页按钮")
-  var 首页按钮 = xpath("xpath\t//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=0 and @label='Home']").getOneNodeInfo(5000);
+  var 首页按钮 = name("Home").type("Button").getOneNodeInfo(5000);
   if (!首页按钮) {
     throw new Error("没找到 [点击首页按钮]");
   }
@@ -379,21 +371,10 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
 
     var 首页分钟 = 获取分钟的值(start_time);
     日志收集器.添加("[关键词广告APP版本] 已在首页停留" + 首页分钟 + "分钟");
-    if (首页分钟 > 2) {
+    if (首页分钟 > 3) {
       break;
     }
   }
-
-  while (true) {
-    日志收集器.添加("[关键词广告APP版本] 首页正在滑行到最最顶端！！！");
-    var 搜索节点首页 = 找节点("search");
-    if (搜索节点首页) {
-      break;
-    }
-    向上滑一次();
-    sleep(随机区间(4000, 8000));
-  }
-
   日志收集器.添加("[关键词广告APP版本] 步骤3 完成");
   return true;
 }
@@ -498,12 +479,12 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
   sleep(随机区间(2000, 5000));
 
 
-  日志收集器.添加("点击登录按钮")
-  var 登录按钮 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=10 and @label='Sign in']").getOneNodeInfo(5000);
+  日志收集器.添加("点击登录按钮");
+  var 登录按钮 = name("Sign in").type("Button").getOneNodeInfo(5000);
   if (!登录按钮) {
     throw new Error("没找到 [登录按钮]");
   }
-  登录按钮.clickRandom();
+  登录按钮.clickCenter();
   sleep(随机区间(3000, 5000));
 
 
@@ -539,10 +520,7 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
     throw new Error("没找到 [个人中心页面，登录失败]");
   }
   日志收集器.添加("已跳转到个人中心页面，登录成功");
-
-
-
-
+  return true;
 }
 
 

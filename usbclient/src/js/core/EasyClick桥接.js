@@ -224,7 +224,7 @@ function 向下滑一次() {
   var h = full.ey - full.y;
   var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
   var yStart = Math.floor(full.y + h * (0.7 + Math.random() * 0.08));
-  var yEnd = Math.floor(full.y + h * (0.26 + Math.random() * 0.1));
+  var yEnd = Math.floor(full.y + h * (0.46 + Math.random() * 0.1));
   var dur = 随机区间(480, 920);
   执行滑动(cx, yStart, cx, yEnd, dur);
 }
@@ -238,7 +238,7 @@ function 向上滑一次() {
   var w = full.ex - full.x;
   var h = full.ey - full.y;
   var cx = Math.floor(full.x + w * (0.38 + Math.random() * 0.24));
-  var yStart = Math.floor(full.y + h * (0.28 + Math.random() * 0.1));
+  var yStart = Math.floor(full.y + h * (0.46 + Math.random() * 0.1));
   var yEnd = Math.floor(full.y + h * (0.74 + Math.random() * 0.08));
   var dur = 随机区间(480, 920);
   执行滑动(cx, yStart, cx, yEnd, dur);
