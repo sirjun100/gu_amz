@@ -228,7 +228,14 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
             点击广告次数 = 点击广告次数 + 1;
             关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
             break;
-          } else {
+          }else if(node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)){
+            日志收集器.添加('检测到商标存在广告-有广告');
+            名称节点.clickCenter();
+            sleep(随机区间(4000, 8000));
+            点击广告次数 = 点击广告次数 + 1;
+            关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
+            break;
+          }else {
             日志收集器.添加('没有检测到商标存在广告-无广告');
           }
         } else {
@@ -417,7 +424,12 @@ function 关键词广告点击APP版本_打开AMG并选择环境() {
 
       日志收集器.添加("AMG-点击一键新机");
       var 一键新机 = name("一键新机").getOneNodeInfo(5000);
-      一键新机.clickCenter();
+      if(一键新机){
+        一键新机.clickCenter();
+      }else{
+        clickPoint(184,636);
+      }
+
       sleep(15000);
 
       return true;
