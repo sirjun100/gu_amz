@@ -367,9 +367,10 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
   日志收集器.添加("点击首页按钮")
   var 首页按钮 = name("Home").type("Button").getOneNodeInfo(5000);
   if (!首页按钮) {
-    throw new Error("没找到 [点击首页按钮]");
+    日志收集器.添加("没找到 [点击首页按钮]");
+    clickPoint(99,1694);
   }
-  首页按钮.clickRandom();
+  首页按钮.clickCenter();
   sleep(随机区间(3000, 5000));
 
 
@@ -465,11 +466,12 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
   sleep(随机区间(2000, 3000));
 
   日志收集器.添加("点击【SIGN IN】");
-  var Sign_in = 找可视化节点NAME("Sign in");
+  var Sign_in = name("Sign in").type("Button").getOneNodeInfo(5000);
   if (!Sign_in) {
-    throw new Error("没找到 [菜单栏目个人中心图标]");
+    日志收集器.添加("没找到 [菜单栏目个人中心图标]");
+    clickPoint(372, 544);
   }
-  Sign_in.clickRandom();
+  Sign_in.clickCenter();
   sleep(随机区间(20000, 30000));
 
 
