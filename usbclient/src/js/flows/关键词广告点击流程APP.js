@@ -10,9 +10,7 @@ function 关键词广告点击流程APP版本(task) {
     关键词广告点击APP版本_返回到HOME界面();
 
     日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
-    if (!关键词广告点击APP版本_打开AMG并选择环境_下一条()) {
-      throw new Error("步骤1 失败：打开 AMG 并选择环境");
-    }
+    关键词广告点击APP版本_打开AMG并选择环境_下一条();
 
     日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
     关键词广告点击APP版本_返回到HOME界面();
@@ -557,37 +555,36 @@ function 关键词广告点击APP版本_打开AMG并选择环境() {
 }
 
 function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
-  var 选择环境状态 = false;
-  var attempt = 0;
-  for (attempt = 0; attempt < 3; attempt++) {
-    logd("[关键词广告] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
-    var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
-    if (AMG应用图标按钮) {
-      clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
-      sleep(3000);
-      var 备份记录按钮 = name("备份记录").getOneNodeInfo(5000);
-      var 下一条按钮 = name("下一条").getOneNodeInfo(5000);
-      if (备份记录按钮) {
-        备份记录按钮.clickCenter();
-        sleep(2000);
-        下一条按钮 = name("下一条").getOneNodeInfo(5000);
-      }
-      if (下一条按钮) {
-        下一条按钮 = name("下一条").getOneNodeInfo(5000);
-        if (下一条按钮) {
-          下一条按钮.clickCenter();
-          sleep(6000);
-          选择环境状态 = true;
-        }
-      }
-    }
-    if (选择环境状态) {
-      日志收集器.添加("[关键词广告] 步骤1 AMG 选环境成功");
-      break;
-    }
-    sleep(2000);
+
+  var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
+  if (AMG应用图标按钮) {
+    clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
+    sleep(3000);
+  }else{
+    clickPoint(229, 1660);
+    sleep(3000);
   }
-  return 选择环境状态;
+
+  var 备份记录按钮 = name("备份记录").getOneNodeInfo(5000);
+  if (备份记录按钮){
+    日志收集器.添加("检测到备份记录按钮- 点击备份记录");
+    备份记录按钮.clickCenter();
+    sleep(2000);
+  }else{
+    日志收集器.添加("wei检测到备份记录按钮");
+  }
+
+  日志收集器.添加("查找下一条按钮，切换环境");
+  var 下一条按钮 = name("下一条").getOneNodeInfo(5000);
+  if (!下一条按钮) {
+    日志收集器.添加("没有找到AMG下一条按钮");
+    throw new Error("没有找到AMG下一条按钮");
+  }
+  下一条按钮.clickCenter();
+  日志收集器.添加("成功点击下一条按钮。等待切换环境");
+  sleep(6000);
+
+
 }
 
 
@@ -749,18 +746,8 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     sleep(5000);
     日志收集器.添加("[关键词广告APP版本] 步骤2 未识别 亚马逊首页 界面，尝试点击桌面图标");
   }
-
-  //直接打开首页
-  亚马逊APP首页识别图标 = 找图("亚马逊APP首页识别图标.png");
   //弹出了注册页面
   打开亚马逊跳转到登录页面图标 = 找图("打开亚马逊跳转到登录页面图标.png");
-
-  if (亚马逊APP首页识别图标) {
-    日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
-    sleep(20000);
-    return true;
-  }
-
   if (打开亚马逊跳转到登录页面图标) {
     var 亚马逊跳转到登录页面取消标志 = 找图("亚马逊跳转到登录页面取消标志.png");
     clickPoint(亚马逊跳转到登录页面取消标志.x, 亚马逊跳转到登录页面取消标志.y);
@@ -768,8 +755,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
-  日志收集器.添加("[关键词广告APP版本] 亚马逊APP打开异常~!! 请检查");
-  return false;
+  return trues;
 
 }
 
