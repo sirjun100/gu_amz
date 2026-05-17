@@ -438,6 +438,10 @@ class Database:
                     totp_set_at TIMESTAMP NULL,
                     totp_secret VARCHAR(256) NULL,
                     totp_image_stored_name VARCHAR(255) NULL,
+                    login_enabled TINYINT(1) NOT NULL DEFAULT 1,
+                    login_disabled_at TIMESTAMP NULL,
+                    login_failure_image_stored_name VARCHAR(255) NULL,
+                    login_failure_note VARCHAR(512) NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_amazon_accounts_task (task_id),
@@ -464,6 +468,14 @@ class Database:
                 parts.append("ADD COLUMN address_set_at TIMESTAMP NULL")
             if "totp_set_at" not in cols:
                 parts.append("ADD COLUMN totp_set_at TIMESTAMP NULL")
+            if "login_enabled" not in cols:
+                parts.append("ADD COLUMN login_enabled TINYINT(1) NOT NULL DEFAULT 1")
+            if "login_disabled_at" not in cols:
+                parts.append("ADD COLUMN login_disabled_at TIMESTAMP NULL")
+            if "login_failure_image_stored_name" not in cols:
+                parts.append("ADD COLUMN login_failure_image_stored_name VARCHAR(255) NULL")
+            if "login_failure_note" not in cols:
+                parts.append("ADD COLUMN login_failure_note VARCHAR(512) NULL")
             if parts:
                 cur.execute("ALTER TABLE amazon_accounts " + ", ".join(parts))
             if "environment" in cols:
@@ -1614,6 +1626,87 @@ class Database:
         c = totp_current_code(str(sec))
         return {"has_secret": True, "totp_code": c}
 
+    def amazon_account_mark_login_failed(
+        self, phone: str, image_bytes: bytes, original_name: str, note: str | None = None
+    ) -> dict:
+        ph = (phone or "").strip()
+        if not ph or not image_bytes:
+            return {"ok": False, "error": "参数无效"}
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id FROM amazon_accounts
+                WHERE phone = %s
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (ph,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"ok": False, "error": "手机号码未匹配到账号记录"}
+            account_id = int(row["id"])
+
+        ensure_data_dir()
+        ext = ".png"
+        on = (original_name or "").lower()
+        if on.endswith(".jpg") or on.endswith(".jpeg"):
+            ext = ".jpg"
+        elif on.endswith(".webp"):
+            ext = ".webp"
+        safe_phone = "".join(ch for ch in ph if ch.isalnum())[:24] or "phone"
+        stored = f"amzloginfail_{safe_phone}_{uuid.uuid4().hex}{ext}"
+        path = os.path.join(TASK_IMAGE_DIR, stored)
+        try:
+            with open(path, "wb") as f:
+                f.write(image_bytes)
+        except OSError:
+            return {"ok": False, "error": "保存截图失败"}
+
+        detail = (note or "").strip()[:512] or "login_failed"
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE amazon_accounts
+                SET login_enabled = 0,
+                    login_disabled_at = CURRENT_TIMESTAMP,
+                    login_failure_image_stored_name = %s,
+                    login_failure_note = %s
+                WHERE id = %s
+                """,
+                (stored, detail, account_id),
+            )
+        return {"ok": True, "account_id": account_id, "login_enabled": False}
+
+    def amazon_account_set_login_enabled(self, account_id: int, enabled: bool) -> bool:
+        aid = int(account_id or 0)
+        if aid <= 0:
+            return False
+        if enabled:
+            with self._cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE amazon_accounts
+                    SET login_enabled = 1,
+                        login_disabled_at = NULL,
+                        login_failure_note = NULL
+                    WHERE id = %s
+                    """,
+                    (aid,),
+                )
+                return int(cur.rowcount or 0) > 0
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE amazon_accounts
+                SET login_enabled = 0,
+                    login_disabled_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (aid,),
+            )
+            return int(cur.rowcount or 0) > 0
+
     def list_amazon_accounts_paginated(self, page: int, per_page: int, q: str | None):
         offset = (page - 1) * per_page
         where = ["1=1"]
@@ -1711,11 +1804,23 @@ class Database:
             WHERE (totp_set_at IS NOT NULL OR COALESCE(totp_secret, '') <> '')
               AND COALESCE(phone, '') <> ''
               AND COALESCE(account_password, '') <> ''
+              AND COALESCE(login_enabled, 1) = 1
             ORDER BY RAND()
             LIMIT 1
             """
         )
         return cur.fetchone()
+
+    def pick_random_totp_ready_amazon_account(self) -> dict | None:
+        with self._cursor() as (conn, cur):
+            row = self._pick_random_totp_ready_amazon_account_cur(cur)
+        if not row:
+            return None
+        return {
+            "phone": (row.get("phone") or "").strip(),
+            "account_username": (row.get("account_username") or "").strip(),
+            "account_password": (row.get("account_password") or "").strip(),
+        }
 
     def insert_app_click_tasks_batch(
         self,
@@ -1752,9 +1857,6 @@ class Database:
                 if not did:
                     continue
                 for _ in range(c):
-                    account = self._pick_random_totp_ready_amazon_account_cur(cur)
-                    if not account:
-                        raise ValueError("NO_TOTP_READY_AMAZON_ACCOUNT")
                     picks = random.sample(keywords, 3) if len(keywords) >= 3 else list(keywords)
                     payload = json.dumps(
                         {
@@ -1763,9 +1865,6 @@ class Database:
                             "identify_word": iw,
                             "identify_prices": prices,
                             "identify_pool_id": pool_id,
-                            "phone": (account.get("phone") or "").strip(),
-                            "account_username": (account.get("account_username") or "").strip(),
-                            "password": (account.get("account_password") or "").strip(),
                         },
                         ensure_ascii=False,
                     )
@@ -2450,11 +2549,10 @@ class Database:
                 payload = json.dumps(
                     {
                         "keyword": p.get("keyword") or "",
+                        "app_keywords": p.get("app_keywords") or [],
                         "identify_word": p.get("identify_word") or "",
                         "identify_prices": p.get("identify_prices") or [],
-                        "phone": p.get("phone") or "",
-                        "account_username": p.get("account_username") or "",
-                        "password": p.get("password") or "",
+                        "identify_pool_id": p.get("identify_pool_id"),
                     },
                     ensure_ascii=False,
                 )

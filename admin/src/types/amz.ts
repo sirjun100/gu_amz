@@ -129,6 +129,11 @@ export type AmazonAccountRow = {
   address_set_at: string | null
   totp_set_at: string | null
   totp_image_stored_name: string | null
+  login_enabled?: boolean
+  login_disabled_at?: string | null
+  login_failure_image_stored_name?: string | null
+  login_failure_note?: string | null
+  login_failure_image_url?: string | null
   totp_image_url?: string | null
   totp_code_now: string | null
   address_configured?: boolean

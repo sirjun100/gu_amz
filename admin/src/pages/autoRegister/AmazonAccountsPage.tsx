@@ -3,9 +3,11 @@ import {
   clearAmazonAccounts,
   deleteAmazonAccount,
   deleteAmazonAccounts,
+  fetchAmazonAccountLoginFailureImageBlob,
   fetchAmazonAccountTotpImageBlob,
   fetchAmazonAccountsPage,
   fetchTaskCenterDetail,
+  patchAmazonAccountLoginState,
 } from '@/api/amzApi'
 import type { AmazonAccountRow, TaskCenterDetail } from '@/types/amz'
 import { PaginationBar } from '@/components/common/PaginationBar'
@@ -29,12 +31,16 @@ export function AmazonAccountsPage() {
   const [totpImgLoadingId, setTotpImgLoadingId] = useState<number | null>(null)
   const [totpImgUrl, setTotpImgUrl] = useState<string | null>(null)
   const [totpImgTitle, setTotpImgTitle] = useState<string>('')
+  const [failImgLoadingId, setFailImgLoadingId] = useState<number | null>(null)
+  const [failImgUrl, setFailImgUrl] = useState<string | null>(null)
+  const [failImgTitle, setFailImgTitle] = useState<string>('')
 
   useEffect(() => {
     return () => {
       if (totpImgUrl) URL.revokeObjectURL(totpImgUrl)
+      if (failImgUrl) URL.revokeObjectURL(failImgUrl)
     }
-  }, [totpImgUrl])
+  }, [totpImgUrl, failImgUrl])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -156,6 +162,37 @@ export function AmazonAccountsPage() {
     setTotpImgTitle('')
   }
 
+  const openFailImage = async (row: AmazonAccountRow) => {
+    setFailImgLoadingId(row.id)
+    try {
+      const blob = await fetchAmazonAccountLoginFailureImageBlob(row.id)
+      const url = URL.createObjectURL(blob)
+      if (failImgUrl) URL.revokeObjectURL(failImgUrl)
+      setFailImgUrl(url)
+      setFailImgTitle(`账号ID ${row.id} / 手机 ${row.phone ?? '—'}`)
+    } catch {
+      addToast({ message: '加载登录失败截图失败', type: 'error' })
+    } finally {
+      setFailImgLoadingId(null)
+    }
+  }
+
+  const closeFailImage = () => {
+    if (failImgUrl) URL.revokeObjectURL(failImgUrl)
+    setFailImgUrl(null)
+    setFailImgTitle('')
+  }
+
+  const onSetLoginEnabled = async (row: AmazonAccountRow, enabled: boolean) => {
+    try {
+      await patchAmazonAccountLoginState(row.id, enabled)
+      addToast({ message: enabled ? '已设置为可登录' : '已设置为不可登录', type: 'success' })
+      await load()
+    } catch {
+      addToast({ message: '设置登录状态失败', type: 'error' })
+    }
+  }
+
   const renderStatus = (ok: boolean, okText: string, noText: string) => (
     <span className={cn('text-xs font-medium', ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-300')}>
       {ok ? okText : noText}
@@ -231,7 +268,9 @@ export function AmazonAccountsPage() {
               <th className="px-2 py-2 text-left">环境</th>
               <th className="px-2 py-2 text-left">地址状态</th>
               <th className="px-2 py-2 text-left">TOTP状态</th>
+              <th className="px-2 py-2 text-left">登录状态</th>
               <th className="px-2 py-2 text-left">TOTP图片</th>
+              <th className="px-2 py-2 text-left">失败截图</th>
               <th className="px-2 py-2 text-left">TOTP动态码</th>
               <th className="px-2 py-2 text-left">更新时间</th>
               <th className="px-2 py-2 text-left">操作</th>
@@ -240,13 +279,13 @@ export function AmazonAccountsPage() {
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {loading ? (
               <tr>
-                <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={16} className="px-3 py-8 text-center text-slate-500">
                   加载中…
                 </td>
               </tr>
             ) : data.items.length === 0 ? (
               <tr>
-                <td colSpan={14} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={16} className="px-3 py-8 text-center text-slate-500">
                   暂无记录
                 </td>
               </tr>
@@ -254,6 +293,7 @@ export function AmazonAccountsPage() {
               data.items.map((row) => {
                 const addrOk = Boolean(row.address_configured || row.address_set_at)
                 const totpOk = Boolean(row.totp_configured || row.totp_set_at || row.totp_image_stored_name)
+                const loginOk = row.login_enabled !== false
                 return (
                   <tr key={row.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
                     <td className="px-2 py-1.5">
@@ -279,6 +319,9 @@ export function AmazonAccountsPage() {
                     <td className="px-2 py-1.5">{renderStatus(addrOk, '已设置地址', '未设置地址')}</td>
                     <td className="px-2 py-1.5">{renderStatus(totpOk, '已设置TOTP', '未设置TOTP')}</td>
                     <td className="px-2 py-1.5">
+                      {renderStatus(loginOk, '可登录', '不可登录')}
+                    </td>
+                    <td className="px-2 py-1.5">
                       {row.totp_image_stored_name ? (
                         <button
                           type="button"
@@ -287,6 +330,20 @@ export function AmazonAccountsPage() {
                           disabled={totpImgLoadingId === row.id}
                         >
                           {totpImgLoadingId === row.id ? '加载中...' : '查看图片'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {row.login_failure_image_stored_name ? (
+                        <button
+                          type="button"
+                          onClick={() => openFailImage(row)}
+                          className="px-2 py-1 rounded text-xs border border-slate-200 dark:border-slate-600"
+                          disabled={failImgLoadingId === row.id}
+                        >
+                          {failImgLoadingId === row.id ? '加载中...' : '查看失败图'}
                         </button>
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
@@ -306,6 +363,15 @@ export function AmazonAccountsPage() {
                         >
                           {taskLoadingId === row.task_id ? '加载中…' : '查看任务信息'}
                         </button>
+                        {row.login_enabled === false && (
+                          <button
+                            type="button"
+                            onClick={() => onSetLoginEnabled(row, true)}
+                            className="px-2 py-1 rounded text-xs border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          >
+                            设为可登录
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onDeleteOne(row.id)}
@@ -368,6 +434,29 @@ export function AmazonAccountsPage() {
             </div>
             <div className="p-3 bg-slate-100 dark:bg-slate-800 flex items-center justify-center max-h-[calc(90vh-48px)] overflow-auto">
               <img src={totpImgUrl} alt="totp" className="max-w-full max-h-[78vh] object-contain rounded" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {failImgUrl && (
+        <div className="fixed inset-0 z-50 bg-black/75 p-4 flex items-center justify-center" onClick={closeFailImage}>
+          <div
+            className="bg-white dark:bg-slate-900 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 max-w-5xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">{failImgTitle}</h3>
+              <button
+                type="button"
+                onClick={closeFailImage}
+                className="px-2 py-1 rounded text-xs border border-slate-200 dark:border-slate-600"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 flex items-center justify-center max-h-[calc(90vh-48px)] overflow-auto">
+              <img src={failImgUrl} alt="login-failure" className="max-w-full max-h-[78vh] object-contain rounded" />
             </div>
           </div>
         </div>

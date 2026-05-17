@@ -219,6 +219,22 @@ export async function fetchAmazonAccountTotpImageBlob(accountId: number) {
   return res.blob()
 }
 
+export async function fetchAmazonAccountLoginFailureImageBlob(accountId: number) {
+  const token = localStorage.getItem('auth_token')
+  const res = await fetch(`${getApiBase()}/admin/amazon-accounts/${accountId}/login-failure-image`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.blob()
+}
+
+export function patchAmazonAccountLoginState(accountId: number, login_enabled: boolean) {
+  return patch<{ ok: boolean; login_enabled: boolean }>(`/admin/amazon-accounts/${accountId}/login-state`, {
+    login_enabled,
+  })
+}
+
 export function fetchCaptchaAssistPending() {
   return get<{ items: CaptchaAssistPendingItem[] }>('/admin/captcha-assist/pending')
 }

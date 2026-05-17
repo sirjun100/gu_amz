@@ -230,6 +230,10 @@ class ClientAmazonAccountStageBody(BaseModel):
     phone: str = Field(..., min_length=1, max_length=64)
 
 
+class AmazonAccountLoginStateBody(BaseModel):
+    login_enabled: bool
+
+
 class TaskReportParsePreviewBody(BaseModel):
     """Preview parse output for client report logs."""
 
@@ -580,16 +584,11 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
         pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
     if not pairs:
         raise HTTPException(status_code=400, detail="娌℃湁鍙垱寤虹殑浠诲姟鏁伴噺")
-    try:
-        n = db.insert_app_click_tasks_batch(
-            body.identify_pool_id,
-            pairs,
-            persist_data=body.save_data_record,
-        )
-    except ValueError as e:
-        if str(e) == "NO_TOTP_READY_AMAZON_ACCOUNT":
-            raise HTTPException(status_code=400, detail="亚马逊账号管理中没有 TOTP 状态已设置的可用账号")
-        raise
+    n = db.insert_app_click_tasks_batch(
+        body.identify_pool_id,
+        pairs,
+        persist_data=body.save_data_record,
+    )
     return {"ok": True, "created": n}
 
 
@@ -1322,6 +1321,23 @@ async def client_amazon_accounts_totp_code(
     return {"ok": True, **data}
 
 
+@app.post("/api/v1/client/amazon-accounts/login-failed")
+async def client_amazon_accounts_login_failed(
+    phone: str = Form(..., min_length=1, max_length=64),
+    device_id: str = Form(..., min_length=1),
+    image: UploadFile = File(...),
+    note: str = Form(default=""),
+):
+    db.upsert_device_heartbeat(device_id)
+    raw = await image.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="图片为空")
+    out = db.amazon_account_mark_login_failed(phone, raw, image.filename or "login_failed.png", note)
+    if not out.get("ok"):
+        raise HTTPException(status_code=400, detail=out.get("error") or "处理失败")
+    return {"ok": True, "account_id": out.get("account_id"), "login_enabled": False}
+
+
 @app.get("/api/v1/admin/amazon-accounts", response_model=PaginatedRows)
 async def admin_amazon_accounts_list(
     user: CurrentUser,
@@ -1338,10 +1354,12 @@ async def admin_amazon_accounts_list(
         sec = r.get("totp_secret")
         d["totp_code_now"] = totp_current_code(str(sec)) if sec else None
         d["totp_image_url"] = f"/api/v1/admin/amazon-accounts/{int(r['id'])}/totp-image"
+        d["login_failure_image_url"] = f"/api/v1/admin/amazon-accounts/{int(r['id'])}/login-failure-image"
         if "env_name" not in d and "environment" in d:
             d["env_name"] = d.get("environment")
         d["totp_configured"] = bool(r.get("totp_set_at")) or bool(sec)
         d["address_configured"] = bool(r.get("address_set_at"))
+        d["login_enabled"] = bool(r.get("login_enabled", 1))
         d.pop("totp_secret", None)
         items.append(d)
     total_pages = max(1, (total + per_page - 1) // per_page) if total else 1
@@ -1367,6 +1385,33 @@ async def admin_amazon_account_totp_image(user: CurrentUser, account_id: int):
         raise HTTPException(status_code=404, detail="TOTP鍥剧墖涓嶅瓨鍦?")
     media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
     return FileResponse(path, media_type=media_type)
+
+
+@app.get("/api/v1/admin/amazon-accounts/{account_id}/login-failure-image")
+async def admin_amazon_account_login_failure_image(user: CurrentUser, account_id: int):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    row = db.get_amazon_account_by_id(account_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    stored_name = row.get("login_failure_image_stored_name")
+    path = safe_task_image_path(str(stored_name) if stored_name else None)
+    if not path or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="登录失败截图不存在")
+    media_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type)
+
+
+@app.patch("/api/v1/admin/amazon-accounts/{account_id}/login-state")
+async def admin_amazon_account_login_state(
+    user: CurrentUser, account_id: int, body: AmazonAccountLoginStateBody
+):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    ok = db.amazon_account_set_login_enabled(account_id, body.login_enabled)
+    if not ok:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return {"ok": True, "login_enabled": bool(body.login_enabled)}
 
 
 @app.delete("/api/v1/admin/amazon-accounts/{account_id}")
@@ -1539,6 +1584,23 @@ async def client_app_ad_click(body: ClientAppAdClickBody):
 async def client_random_keywords(num: int = Query(2, ge=1, le=100)):
     kws = db.keywords_random_sample(num)
     return {"keywords": kws, "count": len(kws)}
+
+
+@app.get("/api/v1/client/amazon-accounts/random-login")
+async def client_random_login_account(
+    device_id: str = Query(..., min_length=1),
+):
+    db.upsert_device_heartbeat(device_id)
+    row = db.pick_random_totp_ready_amazon_account()
+    if not row:
+        raise HTTPException(status_code=404, detail="暂无可用的TOTP账号")
+    return {
+        "account": {
+            "phone": row.get("phone") or "",
+            "account_username": row.get("account_username") or "",
+            "password": row.get("account_password") or "",
+        }
+    }
 
 
 @app.get("/api/v1/client/tasks/next")

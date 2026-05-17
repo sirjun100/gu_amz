@@ -73,6 +73,25 @@ var 运维接口 = {
   },
 
   /**
+   * 随机获取一个可用于登录的亚马逊账号（要求后台已配置 TOTP）
+   * @return {{account:{phone:string,account_username:string,password:string}}|null}
+   */
+  随机获取登录账号: function () {
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/random-login";
+    var params = { device_id: AMZ_CONFIG.deviceId };
+    var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("随机获取登录账号 解析: " + e);
+      return null;
+    }
+  },
+
+  /**
    * 执行中追加一张截图（不结案）。默认先压缩为 webp 再上传；failed_only 时先入本地队列。
    * @param description 管理端展示说明
    * @param skipCompress true 时不压缩
@@ -303,6 +322,37 @@ var 运维接口 = {
       return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
     } catch (e) {
       loge("totp-qr 解析失败: " + e);
+      return null;
+    }
+  },
+
+  /** 登录失败：标记账号不可登录并上传失败截图 */
+  上报亚马逊账号登录失败: function (phone, imagePath, note) {
+    var ph = phone != null ? String(phone).trim() : "";
+    if (ph.length === 0) {
+      loge("登录失败上报: phone 为空");
+      return null;
+    }
+    var p = imagePath != null ? String(imagePath).trim() : "";
+    if (p.length === 0) {
+      loge("登录失败上报: 图片路径为空");
+      return null;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/login-failed";
+    var params = {
+      phone: ph,
+      device_id: AMZ_CONFIG.deviceId,
+      note: note != null ? String(note).slice(0, 512) : "login_failed",
+    };
+    var files = { image: p };
+    var res = http.httpPost(url, params, files, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("登录失败上报 解析: " + e);
       return null;
     }
   },
