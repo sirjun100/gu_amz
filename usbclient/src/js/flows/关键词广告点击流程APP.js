@@ -222,7 +222,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
         var 名称节点 = node.getOneNodeInfo(xpath(".//node[contains(@name, '" + 品牌 + "')]"), 5000);
         if (名称节点) {
           日志收集器.添加("商标已找到=【" + 名称节点.name + "】节点。");
-          if (node.name.contains("Sponsored")) {
+          if (名称节点.name.contains("Sponsored")) {
             日志收集器.添加('检测到商标存在广告-有广告[名称中包含了广告]-检测节点是否在可视范围内');
             if(名称节点.bounds.left>0 && 名称节点.bounds.right<900){
               日志收集器.添加('名称节点在可视范围内-执行点击详情');
