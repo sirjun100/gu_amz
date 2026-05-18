@@ -4,47 +4,39 @@
  */
 function 关键词广告点击流程APP版本(task) {
   var tid = task != null && task.id != null ? task.id : "?";
-  try {
 
-    日志收集器.添加("[关键词广告APP版本] 开始 task_id=" + tid);
-    关键词广告点击APP版本_返回到HOME界面();
+  日志收集器.添加("[关键词广告APP版本] 开始 task_id=" + tid);
+  关键词广告点击APP版本_返回到HOME界面();
 
-    日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
-    关键词广告点击APP版本_打开AMG并选择环境_下一条();
+  日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
+  关键词广告点击APP版本_打开AMG并选择环境_下一条();
 
-    日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
-    关键词广告点击APP版本_返回到HOME界面();
+  日志收集器.添加("[关键词广告APP版本] 步骤1 完成；返回桌面");
+  关键词广告点击APP版本_返回到HOME界面();
 
-    日志收集器.添加("[关键词广告APP版本] 步骤2/5 打开亚马逊APP");
-    if (!关键词广告点击APP版本_打开亚马逊APP()) {
-      throw new Error("步骤2 失败：打开 亚马逊APP");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
-    关键词广告点击APP版本_登录亚马逊账号(task);
-
-    日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
-    if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
-      throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
-    if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
-      throw new Error("步骤4 失败：随机关键词浏览或加购");
-    }
-
-    日志收集器.添加("[关键词广告APP版本] 步骤5/5 关键词广告点击APP版本_搜索并点击目标任务广告");
-    关键词广告点击APP版本_搜索并点击目标任务广告(task);
-
-    日志收集器.添加("[关键词广告APP版本] 全部步骤完成 task_id=" + tid);
-  } finally {
-    try {
-      appKillByBundleIdEx("com.amazon.Amazon");
-      logd("[关键词广告APP版本] 已尝试关闭 亚马逊APP");
-    } catch (eKill) {
-      logw("[关键词广告APP版本] 关闭 亚马逊APP: " + eKill);
-    }
+  日志收集器.添加("[关键词广告APP版本] 步骤2/5 打开亚马逊APP");
+  if (!关键词广告点击APP版本_打开亚马逊APP()) {
+    throw new Error("步骤2 失败：打开 亚马逊APP");
   }
+
+  日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
+  关键词广告点击APP版本_登录亚马逊账号(task);
+
+  日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
+  if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
+    throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
+  }
+
+  日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
+  if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
+    throw new Error("步骤4 失败：随机关键词浏览或加购");
+  }
+
+  日志收集器.添加("[关键词广告APP版本] 步骤5/5 关键词广告点击APP版本_搜索并点击目标任务广告");
+  关键词广告点击APP版本_搜索并点击目标任务广告(task);
+
+  日志收集器.添加("[关键词广告APP版本] 全部步骤完成 task_id=" + tid);
+
 }
 
 /**
@@ -168,7 +160,7 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
     var 点击广告次数 = 0;
 
 
-    日志收集器.添加("正在检测界面是否存在品牌======"+品牌);
+    日志收集器.添加("正在检测界面是否存在品牌======" + 品牌);
     var 是否有品牌默认有 = true
     var 品牌节点 = xpath("//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]").getOneNodeInfo(5000);
     if (!品牌节点) {
@@ -179,101 +171,101 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
     }
 
     while (true) {
-    if (点击广告次数 >= 3) {
-      日志收集器.添加("[关键词广告APP版本] 步骤5 已达最多点击次数 3，结束");
-      break;
-    }
-    var 执行分钟 = 获取分钟的值(任务详情开始时间);
-    if (执行分钟 > 点击广告次数 * 4 + 6) {
-      日志收集器.添加("[关键词广告APP版本] 步骤5 超过时间预算（约 " + 执行分钟 + " 分钟），结束");
-      break;
-    }
+      if (点击广告次数 >= 3) {
+        日志收集器.添加("[关键词广告APP版本] 步骤5 已达最多点击次数 3，结束");
+        break;
+      }
+      var 执行分钟 = 获取分钟的值(任务详情开始时间);
+      if (执行分钟 > 点击广告次数 * 4 + 6) {
+        日志收集器.添加("[关键词广告APP版本] 步骤5 超过时间预算（约 " + 执行分钟 + " 分钟），结束");
+        break;
+      }
 
-    var 根节点 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0]").getOneNodeInfo(5000);
-    //var 根节点 = name("Amazon.com : "+关键词).getOneNodeInfo(5000);
-    if (!根节点) {
-      日志收集器.添加("未找到根节点");
-    }
-    // 2. 锁定节点
-    lockNode();
-    // 3. 获取所有直接子节点（不包含孙子节点）
-    let childCount = 根节点.childCount; // 获取子节点数量
-    logd("父节点的直接子节点数量: " + childCount);
-    // 4. 遍历所有直接子节点，筛选符合条件的
-    let resultNodes = [];
-    for (let i = 0; i < childCount; i++) {
-      let child = 根节点.child(i); // 使用 child(index) 获取直接子节点
-      if (child && child.type == "Other") {
-        var bounds = child.bounds;
-        var height = bounds.bottom-bounds.top
-        if (bounds.top > -100 && bounds.bottom < 1800
+      var 根节点 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0]").getOneNodeInfo(5000);
+      //var 根节点 = name("Amazon.com : "+关键词).getOneNodeInfo(5000);
+      if (!根节点) {
+        日志收集器.添加("未找到根节点");
+      }
+      // 2. 锁定节点
+      //lockNode();
+      // 3. 获取所有直接子节点（不包含孙子节点）
+      let childCount = 根节点.childCount; // 获取子节点数量
+      logd("父节点的直接子节点数量: " + childCount);
+      // 4. 遍历所有直接子节点，筛选符合条件的
+      let resultNodes = [];
+      for (let i = 0; i < childCount; i++) {
+        let child = 根节点.child(i); // 使用 child(index) 获取直接子节点
+        if (child && child.type == "Other") {
+          var bounds = child.bounds;
+          var height = bounds.bottom - bounds.top
+          if (bounds.top > -100 && bounds.bottom < 1800
             && bounds.right <= 900 && bounds.right >= 700
             && height > 500) {
-          resultNodes.push(child);
-          logd(`$Other: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
+            resultNodes.push(child);
+            logd(`$Other: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
+          }
         }
       }
-    }
 
-    logd("共找到 " + resultNodes.length + " 个符合条件的直接子节点【已显示的节点】");
-    for (let i = 0; i < resultNodes.length; i++) {
-      var node = resultNodes[i];
-      if (是否有品牌默认有) {
-        var 名称节点 = node.getOneNodeInfo(xpath(".//node[contains(@name, '" + 品牌 + "')]"), 5000);
-        if (名称节点) {
-          日志收集器.添加("商标已找到=【" + 名称节点.name + "】节点。");
-          if (名称节点.name.contains("Sponsored")) {
-            日志收集器.添加('检测到商标存在广告-有广告[名称中包含了广告]-检测节点是否在可视范围内');
-            if(名称节点.bounds.left>0 && 名称节点.bounds.right<900){
-              日志收集器.添加('名称节点在可视范围内-执行点击详情');
-              名称节点.clickCenter();
-              sleep(随机区间(4000, 8000));
-              点击广告次数 = 点击广告次数 + 1;
-              关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
-              break;
-            }else{
-              日志收集器.添加('名称节点不在可视范围内');
+      logd("共找到 " + resultNodes.length + " 个符合条件的直接子节点【已显示的节点】");
+      for (let i = 0; i < resultNodes.length; i++) {
+        var node = resultNodes[i];
+        if (是否有品牌默认有) {
+          var 名称节点 = node.getOneNodeInfo(xpath(".//node[contains(@name, '" + 品牌 + "')]"), 5000);
+          if (名称节点) {
+            日志收集器.添加("商标已找到=【" + 名称节点.name + "】节点。");
+            if (名称节点.name.contains("Sponsored")) {
+              日志收集器.添加('检测到商标存在广告-有广告[名称中包含了广告]-检测节点是否在可视范围内');
+              if (名称节点.bounds.left > 0 && 名称节点.bounds.right < 900) {
+                日志收集器.添加('名称节点在可视范围内-执行点击详情');
+                名称节点.clickCenter();
+                sleep(随机区间(4000, 8000));
+                点击广告次数 = 点击广告次数 + 1;
+                关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
+                break;
+              } else {
+                日志收集器.添加('名称节点不在可视范围内');
+              }
+            } else if (node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)) {
+              日志收集器.添加('检测到商标存在广告-有广告[检测到跟节点存在广告]-检测节点是否在可视范围内');
+              if (名称节点.bounds.left > 0 && 名称节点.bounds.right < 900) {
+                日志收集器.添加('名称节点在可视范围内-执行点击详情');
+                名称节点.clickCenter();
+                sleep(随机区间(4000, 8000));
+                点击广告次数 = 点击广告次数 + 1;
+                关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
+                break;
+              } else {
+                日志收集器.添加('名称节点不在可视范围内');
+              }
+            } else {
+              日志收集器.添加('没有检测到商标存在广告-无广告');
             }
-          }else if(node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)){
-            日志收集器.添加('检测到商标存在广告-有广告[检测到跟节点存在广告]-检测节点是否在可视范围内');
-            if(名称节点.bounds.left>0 && 名称节点.bounds.right<900){
-              日志收集器.添加('名称节点在可视范围内-执行点击详情');
-              名称节点.clickCenter();
-              sleep(随机区间(4000, 8000));
-              点击广告次数 = 点击广告次数 + 1;
-              关键词广告点击APP版本_浏览详情页面(品牌, 关键词);
-              break;
-            }else{
-              日志收集器.添加('名称节点不在可视范围内');
-            }
-          }else {
-            日志收集器.添加('没有检测到商标存在广告-无广告');
+          } else {
+            日志收集器.添加('没找到名称节点');
           }
         } else {
-          日志收集器.添加('没找到名称节点');
-        }
-      } else {
-        for (let j = 0; j < 价格列表.length; j++) {
-          var 价格 = 价格列表[j];
-          日志收集器.添加("正在查找价格=【$" + 价格 + "】节点。");
-          var 价格节点 = node.getOneNodeInfo(xpath(".//node[@type='StaticText'][@value='$" + 价格 + "']"), 2000);
-          if (价格节点) {
-            日志收集器.添加("已经找到价格节点=【$" + 价格 + "】节点。现在正在判断有没有广告");
-            if (node.getOneNodeInfo(xpath(".//node[@type='StaticText'][contains(@name, 'Sponsored')]"), 2000)) {
-              日志收集器.添加('检测到价格节点存在广告-有广告');
-              node.clickCenter();
-              sleep(随机区间(4000, 8000));
-              点击广告次数 = 点击广告次数 + 1;
-              关键词广告点击APP版本_浏览详情页面(价格, 关键词);
-              break;
-            } else {
-              日志收集器.添加('检测到价格节点不存在广告-无广告');
+          for (let j = 0; j < 价格列表.length; j++) {
+            var 价格 = 价格列表[j];
+            日志收集器.添加("正在查找价格=【$" + 价格 + "】节点。");
+            var 价格节点 = node.getOneNodeInfo(xpath(".//node[@type='StaticText'][@value='$" + 价格 + "']"), 2000);
+            if (价格节点) {
+              日志收集器.添加("已经找到价格节点=【$" + 价格 + "】节点。现在正在判断有没有广告");
+              if (node.getOneNodeInfo(xpath(".//node[@type='StaticText'][contains(@name, 'Sponsored')]"), 2000)) {
+                日志收集器.添加('检测到价格节点存在广告-有广告');
+                node.clickCenter();
+                sleep(随机区间(4000, 8000));
+                点击广告次数 = 点击广告次数 + 1;
+                关键词广告点击APP版本_浏览详情页面(价格, 关键词);
+                break;
+              } else {
+                日志收集器.添加('检测到价格节点不存在广告-无广告');
+              }
             }
           }
         }
       }
-    }
-      releaseNode();
+      //releaseNode();
       向下滑一次_短();
     }
     sleep(随机区间(1500, 3000));
@@ -282,9 +274,9 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
 }
 
 
-function 关键词广告点击APP版本_搜索并点击目标任务广告_TEST(){
+function 关键词广告点击APP版本_搜索并点击目标任务广告_TEST() {
   var 品牌 = "HOMEIDEAS"
-  日志收集器.添加("正在检测界面是否存在品牌======"+品牌);
+  日志收集器.添加("正在检测界面是否存在品牌======" + 品牌);
   var 是否有品牌默认有 = true
   var 品牌节点 = xpath("//node[@type='StaticText'][contains(@name, '" + 品牌 + "')]").getOneNodeInfo(5000);
   if (!品牌节点) {
@@ -309,10 +301,10 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告_TEST()
     let child = 根节点.child(i); // 使用 child(index) 获取直接子节点
     if (child && child.type == "Other") {
       var bounds = child.bounds;
-      var height = bounds.bottom-bounds.top
+      var height = bounds.bottom - bounds.top
       if (bounds.top > -100 && bounds.bottom < 1800
-          && bounds.right <= 900 && bounds.right >= 700
-          && height > 500) {
+        && bounds.right <= 900 && bounds.right >= 700
+        && height > 500) {
         resultNodes.push(child);
         logd(`$Other: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
       }
@@ -335,18 +327,18 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告_TEST()
         日志收集器.添加("商标已找到=【" + 名称节点.name + "】节点。");
         if (名称节点.name.contains("Sponsored")) {
           日志收集器.添加('检测到商标存在广告-有广告1');
-          if(名称节点.bounds.left>0 && 名称节点.bounds.right<900){
+          if (名称节点.bounds.left > 0 && 名称节点.bounds.right < 900) {
             名称节点.clickCenter();
           }
           break;
-        }else if(node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)){
+        } else if (node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)) {
           日志收集器.添加('检测到商标存在广告-有广告2');
-          if(名称节点.bounds.left>0 && 名称节点.bounds.right<900){
-            clickPoint(名称节点.bounds.right,名称节点.bounds.bottom+100)
+          if (名称节点.bounds.left > 0 && 名称节点.bounds.right < 900) {
+            clickPoint(名称节点.bounds.right, 名称节点.bounds.bottom + 100)
           }
 
           break;
-        }else {
+        } else {
           日志收集器.添加('没有检测到商标存在广告-无广告');
         }
       } else {
@@ -476,7 +468,7 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
   var 首页按钮 = name("Home").type("Button").getOneNodeInfo(5000);
   if (!首页按钮) {
     日志收集器.添加("没找到 [点击首页按钮]");
-    clickPoint(99,1694);
+    clickPoint(99, 1694);
   }
   首页按钮.clickCenter();
   sleep(随机区间(3000, 5000));
@@ -523,20 +515,20 @@ function 关键词广告点击APP版本_打开AMG并选择环境() {
 
       日志收集器.添加("判断当前页面");
       var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
-      if(AMG){
+      if (AMG) {
         日志收集器.添加("在环境列表页面");
         AMG.clickCenter();
         sleep(10000);
-      }else{
+      } else {
         日志收集器.添加("在首页");
       }
 
       日志收集器.添加("AMG-点击一键新机");
       var 一键新机 = name("一键新机").getOneNodeInfo(5000);
-      if(一键新机){
+      if (一键新机) {
         一键新机.clickCenter();
-      }else{
-        clickPoint(184,636);
+      } else {
+        clickPoint(184, 636);
       }
 
       sleep(15000);
@@ -560,25 +552,25 @@ function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
   if (AMG应用图标按钮) {
     clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
     sleep(3000);
-  }else{
+  } else {
     clickPoint(229, 1660);
     sleep(3000);
   }
 
   var 备份记录按钮 = name("备份记录").getOneNodeInfo(5000);
-  if (备份记录按钮){
+  if (备份记录按钮) {
     日志收集器.添加("检测到备份记录按钮- 点击备份记录");
     备份记录按钮.clickCenter();
     sleep(2000);
-  }else{
+  } else {
     日志收集器.添加("wei检测到备份记录按钮");
   }
 
   日志收集器.添加("查找下一条按钮，切换环境");
   var 下一条按钮 = name("下一条").getOneNodeInfo(5000);
   if (!下一条按钮) {
-    日志收集器.添加("没有找到AMG下一条按钮");
-    throw new Error("没有找到AMG下一条按钮");
+    日志收集器.添加("没有找到AMG下一条按钮-直接点击硬坐标(730,1677)");
+    clickPoint(730, 1677);
   }
   下一条按钮.clickCenter();
   日志收集器.添加("成功点击下一条按钮。等待切换环境");
@@ -602,8 +594,8 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
   if (菜单栏目个人中心图标) {
     日志收集器.添加("已找到-点击【菜单栏目个人中心图标】")
     clickPoint(菜单栏目个人中心图标.x, 菜单栏目个人中心图标.y);
-  }else{
-    clickPoint(310,1677);
+  } else {
+    clickPoint(310, 1677);
   }
   sleep(随机区间(2000, 3000));
 
@@ -766,7 +758,7 @@ function 关键词广告点击APP版本_返回到HOME界面() {
     startEnv();
     sleep(3000);
     var success = home(); //agentEvent.pressKey("home");
-    日志收集器.添加("[关键词广告APP版本，状态："+success+"] 被点击，等待8秒");
+    日志收集器.添加("[关键词广告APP版本，状态：" + success + "] 被点击，等待8秒");
     sleep(8000);
     if (success) {
       FLAG = true;
