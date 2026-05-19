@@ -747,7 +747,7 @@ function 关键词广告点击APP版本_打开亚马逊APP() {
     日志收集器.添加("[关键词广告APP版本] 亚马逊APP已准备就绪");
     return true;
   }
-  return trues;
+  return true;
 
 }
 
