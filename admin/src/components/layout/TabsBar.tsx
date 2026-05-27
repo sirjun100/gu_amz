@@ -25,6 +25,7 @@ const routeTitles: Record<string, string> = {
   '/keywords': '随机关键词',
   '/tasks/search-click': '搜索产品点击',
   '/tasks/search-click-app': '搜索产品点击APP版本',
+  '/tasks/sp-vertical-ad-double-keywords-3min': 'SP竖版广告双关键词_3分钟版本',
   '/tasks/related-click': '相关产品点击',
   '/tasks/similar-click': '同类产品点击',
   '/tasks/register': '创建亚马逊注册任务',

@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   clearRegisterPhonePool,
   deleteRegisterPhonePool,
+  fetchRegisterPhonePoolFailedConsumedCount,
   fetchRegisterCodePoolsStats,
   fetchRegisterPhonePoolPage,
   importRegisterPhonePool,
+  resetRegisterPhonePoolFailedConsumed,
 } from '@/api/amzApi'
 import type { RegisterPhonePoolRow } from '@/types/amz'
 import { PaginationBar } from '@/components/common/PaginationBar'
@@ -36,6 +38,7 @@ export function RegisterPhonePoolPage() {
   const [importing, setImporting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [checkingFailed, setCheckingFailed] = useState(false)
 
   const loadStats = useCallback(() => {
     fetchRegisterCodePoolsStats()
@@ -146,6 +149,26 @@ export function RegisterPhonePoolPage() {
     }
   }
 
+  const checkAndResetFailedPhones = async () => {
+    setCheckingFailed(true)
+    try {
+      const c = await fetchRegisterPhonePoolFailedConsumedCount()
+      const count = Number(c.count || 0)
+      if (count <= 0) {
+        window.alert('没有检测到注册失败的已用手机号。')
+        return
+      }
+      if (!window.confirm(`检测到 ${count} 个注册失败的手机号，是否把已用状态设置为“否”？`)) return
+      const r = await resetRegisterPhonePoolFailedConsumed()
+      addToast({ message: `已恢复 ${r.reset} 个手机号为未使用`, type: 'success' })
+      refreshAfterDelete()
+    } catch {
+      addToast({ message: '检测注册失败手机号失败', type: 'error' })
+    } finally {
+      setCheckingFailed(false)
+    }
+  }
+
   return (
     <div className="space-y-4 w-full">
       <div>
@@ -213,6 +236,14 @@ export function RegisterPhonePoolPage() {
             className="px-2 py-1 rounded text-xs bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
           >
             清空全部
+          </button>
+          <button
+            type="button"
+            disabled={checkingFailed}
+            onClick={checkAndResetFailedPhones}
+            className="px-2 py-1 rounded text-xs border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/40"
+          >
+            {checkingFailed ? '检测中…' : '检测注册失败的手机号'}
           </button>
         </div>
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto bg-white dark:bg-slate-800/30">

@@ -92,6 +92,25 @@ var 运维接口 = {
   },
 
   /**
+   * 获取一个还没设置 TOTP 的亚马逊账号。
+   * @return {{account:{id:number,task_id:number,phone:string,account_username:string,password:string,env_name:string,params:object}}|null}
+   */
+  获取未设置OTP亚马逊账号: function () {
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/needs-totp";
+    var params = { device_id: AMZ_CONFIG.deviceId };
+    var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      return null;
+    }
+    try {
+      return typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+    } catch (e) {
+      logw("获取未设置OTP亚马逊账号 解析: " + e);
+      return null;
+    }
+  },
+
+  /**
    * 执行中追加一张截图（不结案）。默认先压缩为 webp 再上传；failed_only 时先入本地队列。
    * @param description 管理端展示说明
    * @param skipCompress true 时不压缩

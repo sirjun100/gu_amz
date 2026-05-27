@@ -111,6 +111,15 @@ function App() {
           />
           <Route path="tasks/search-click-app" element={<AppClickTaskPage />} />
           <Route
+            path="tasks/sp-vertical-ad-double-keywords-3min"
+            element={
+              <AppClickTaskPage
+                taskType="SP竖版广告双关键词_3分钟版本"
+                title="SP竖版广告双关键词_3分钟版本"
+              />
+            }
+          />
+          <Route
             path="tasks/similar-click"
             element={
               <ClickTaskPage taskType="similar_click" title="同类产品点击任务" description="字段与分配方式同搜索产品点击（keyword + res_folder_name），仅任务类型不同" />

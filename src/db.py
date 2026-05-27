@@ -18,7 +18,7 @@ from .totp_qr import decode_totp_secret_from_image_bytes, totp_current_code
 load_dotenv()
 
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
-APP_CLICK_TASK_TYPES = frozenset({"search_click_app"})
+APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP竖版广告双关键词_3分钟版本"})
 ALL_CLICK_TASK_TYPES = CLICK_TASK_TYPES | APP_CLICK_TASK_TYPES
 
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
@@ -1822,12 +1822,56 @@ class Database:
             "account_password": (row.get("account_password") or "").strip(),
         }
 
+    def pick_amazon_account_needing_totp(self) -> dict | None:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.*, r.sms_link AS phone_pool_sms_link, r.id AS phone_pool_id_matched
+                FROM amazon_accounts a
+                LEFT JOIN register_phone_pool r ON TRIM(r.phone) = TRIM(a.phone)
+                WHERE COALESCE(a.phone, '') <> ''
+                  AND COALESCE(a.account_password, '') <> ''
+                  AND COALESCE(a.login_enabled, 1) = 1
+                  AND a.totp_set_at IS NULL
+                  AND COALESCE(a.totp_secret, '') = ''
+                  AND COALESCE(r.sms_link, '') <> ''
+                ORDER BY a.id ASC, r.id DESC
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        out = dict(row)
+        params: dict = {}
+        raw = out.get("registration_json")
+        if raw:
+            try:
+                parsed = json.loads(str(raw))
+                if isinstance(parsed, dict):
+                    params = parsed
+            except Exception:
+                params = {}
+        params["phone"] = (out.get("phone") or params.get("phone") or "").strip()
+        params["account_username"] = (out.get("account_username") or params.get("account_username") or "").strip()
+        params["account_password"] = (out.get("account_password") or params.get("account_password") or "").strip()
+        params["env_name"] = (out.get("env_name") or params.get("env_name") or "").strip()
+        params["sms_link"] = (params.get("sms_link") or out.get("phone_pool_sms_link") or "").strip()
+        if params.get("phone_pool_id") is None and out.get("phone_pool_id_matched") is not None:
+            params["phone_pool_id"] = int(out.get("phone_pool_id_matched") or 0)
+        out["params"] = params
+        return out
+
     def insert_app_click_tasks_batch(
         self,
+        task_type: str,
         identify_pool_id: int,
         device_counts: list[tuple[str, int]],
         persist_data: bool = False,
     ) -> int:
+        tt = (task_type or "").strip()
+        if tt not in APP_CLICK_TASK_TYPES:
+            return 0
         pool_id = int(identify_pool_id or 0)
         if pool_id <= 0:
             return 0
@@ -1873,7 +1917,7 @@ class Database:
                         INSERT INTO tasks (device_id, task_type, status, params, persist_data)
                         VALUES (%s, %s, 'pending', %s, %s)
                         """,
-                        (did, "search_click_app", payload, pd),
+                        (did, tt, payload, pd),
                     )
                     n += 1
         return n
@@ -2262,6 +2306,31 @@ class Database:
     def clear_register_phone_pool(self) -> int:
         with self._cursor() as (conn, cur):
             cur.execute("DELETE FROM register_phone_pool")
+            return int(cur.rowcount or 0)
+
+    def count_failed_consumed_register_phone_pool(self) -> int:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM register_phone_pool r
+                LEFT JOIN amazon_accounts a ON TRIM(a.phone) = TRIM(r.phone)
+                WHERE r.consumed_at IS NOT NULL AND a.id IS NULL
+                """
+            )
+            return int(cur.fetchone()["c"] or 0)
+
+    def reset_failed_consumed_register_phone_pool(self) -> int:
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE register_phone_pool r
+                LEFT JOIN amazon_accounts a ON TRIM(a.phone) = TRIM(r.phone)
+                SET r.consumed_at = NULL,
+                    r.register_task_id = NULL
+                WHERE r.consumed_at IS NOT NULL AND a.id IS NULL
+                """
+            )
             return int(cur.rowcount or 0)
 
     def delete_register_email_pool_ids(self, ids: list[int]) -> int:

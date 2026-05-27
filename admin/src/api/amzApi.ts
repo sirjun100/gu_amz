@@ -101,6 +101,7 @@ export function postBatchClick(body: {
 }
 
 export function postBatchClickApp(body: {
+  task_type?: string
   identify_pool_id: number
   mode: 'manual' | 'smart'
   device_ids: string[]
@@ -175,6 +176,14 @@ export function deleteRegisterPhonePool(ids: number[]) {
 
 export function clearRegisterPhonePool() {
   return post<{ ok: boolean; deleted: number }>('/admin/register-phone-pool/clear')
+}
+
+export function fetchRegisterPhonePoolFailedConsumedCount() {
+  return get<{ ok: boolean; count: number }>('/admin/register-phone-pool/failed-consumed-count')
+}
+
+export function resetRegisterPhonePoolFailedConsumed() {
+  return post<{ ok: boolean; reset: number }>('/admin/register-phone-pool/reset-failed-consumed')
 }
 
 export function fetchRegisterEmailPoolPage(page: number, perPage = 30, q?: string) {

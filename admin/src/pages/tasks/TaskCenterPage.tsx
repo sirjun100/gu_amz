@@ -114,6 +114,7 @@ const TYPE_OPTIONS = [
   { value: '', label: '全部类型' },
   { value: 'search_click', label: '搜索产品点击' },
   { value: 'search_click_app', label: '搜索产品点击APP版本' },
+  { value: 'SP竖版广告双关键词_3分钟版本', label: 'SP竖版广告双关键词_3分钟版本' },
   { value: 'related_click', label: '相关产品点击' },
   { value: 'similar_click', label: '同类产品点击' },
   { value: 'register', label: '自动注册' },

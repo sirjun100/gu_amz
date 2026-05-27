@@ -148,6 +148,7 @@ class BatchClickTasksBody(BaseModel):
 
 
 class BatchAppClickTasksBody(BaseModel):
+    task_type: str = Field("search_click_app", min_length=1)
     identify_pool_id: int = Field(..., ge=1)
     mode: str = Field(..., pattern="^(manual|smart)$")
     device_ids: list[str] = Field(default_factory=list)
@@ -335,7 +336,7 @@ def _distribute_total(total: int, n: int) -> list[int]:
 
 
 CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
-APP_CLICK_TYPES = frozenset({"search_click_app"})
+APP_CLICK_TYPES = frozenset({"search_click_app", "SP竖版广告双关键词_3分钟版本"})
 
 
 def _parse_ymd(value: str | None, field_name: str) -> date | None:
@@ -567,6 +568,8 @@ async def admin_tasks_batch_click(user: CurrentUser, body: BatchClickTasksBody):
 async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTasksBody):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
+    if body.task_type not in APP_CLICK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type 无效")
     device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
     if not device_ids:
         raise HTTPException(status_code=400, detail="璇疯嚦灏戦€夋嫨涓€鍙拌澶?")
@@ -585,6 +588,7 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
     if not pairs:
         raise HTTPException(status_code=400, detail="娌℃湁鍙垱寤虹殑浠诲姟鏁伴噺")
     n = db.insert_app_click_tasks_batch(
+        body.task_type,
         body.identify_pool_id,
         pairs,
         persist_data=body.save_data_record,
@@ -762,6 +766,21 @@ async def admin_register_phone_pool_clear(user: CurrentUser):
         raise HTTPException(status_code=403, detail="闇€瑕佺鐞嗗憳鏉冮檺")
     n = db.clear_register_phone_pool()
     return {"ok": True, "deleted": n}
+
+
+@app.get("/api/v1/admin/register-phone-pool/failed-consumed-count")
+async def admin_register_phone_pool_failed_consumed_count(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    return {"ok": True, "count": db.count_failed_consumed_register_phone_pool()}
+
+
+@app.post("/api/v1/admin/register-phone-pool/reset-failed-consumed")
+async def admin_register_phone_pool_reset_failed_consumed(user: CurrentUser):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    n = db.reset_failed_consumed_register_phone_pool()
+    return {"ok": True, "reset": n}
 
 
 @app.get("/api/v1/admin/register-email-pool", response_model=PaginatedRows)
@@ -1599,6 +1618,28 @@ async def client_random_login_account(
             "phone": row.get("phone") or "",
             "account_username": row.get("account_username") or "",
             "password": row.get("account_password") or "",
+        }
+    }
+
+
+@app.get("/api/v1/client/amazon-accounts/needs-totp")
+async def client_amazon_account_needs_totp(
+    device_id: str = Query(..., min_length=1),
+):
+    db.upsert_device_heartbeat(device_id)
+    row = db.pick_amazon_account_needing_totp()
+    if not row:
+        return {"account": None}
+    params = row.get("params") if isinstance(row.get("params"), dict) else {}
+    return {
+        "account": {
+            "id": int(row.get("id") or 0),
+            "task_id": int(row.get("task_id") or 0),
+            "phone": row.get("phone") or "",
+            "account_username": row.get("account_username") or "",
+            "password": row.get("account_password") or "",
+            "env_name": row.get("env_name") or "",
+            "params": params,
         }
     }
 

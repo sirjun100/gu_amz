@@ -55,6 +55,7 @@ const adClickChildren: NavItem[] = [
   { icon: Shuffle, label: '随机关键词', path: '/keywords' },
   { icon: MousePointerClick, label: '搜索产品点击', path: '/tasks/search-click' },
   { icon: Megaphone, label: '搜索产品点击APP版本', path: '/tasks/search-click-app' },
+  { icon: Megaphone, label: 'SP竖版广告双关键词_3分钟版本', path: '/tasks/sp-vertical-ad-double-keywords-3min' },
   { icon: Link2, label: '相关产品点击', path: '/tasks/related-click' },
   { icon: Copy, label: '同类产品点击', path: '/tasks/similar-click' },
   { icon: ScanBarcode, label: '目标 ASIN', path: '/target-asins' },

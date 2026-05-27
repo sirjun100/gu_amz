@@ -15,7 +15,15 @@ import { cn } from '@/utils/cn'
 const inp =
   'w-full rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1.5 text-sm'
 
-export function AppClickTaskPage() {
+type AppClickTaskPageProps = {
+  taskType?: string
+  title?: string
+}
+
+export function AppClickTaskPage({
+  taskType = 'search_click_app',
+  title = '搜索产品点击APP版本',
+}: AppClickTaskPageProps) {
   const { addToast } = useUIStore()
   const [devices, setDevices] = useState<DeviceOption[]>([])
   const [pools, setPools] = useState<AppIdentifyPoolRow[]>([])
@@ -116,6 +124,7 @@ export function AppClickTaskPage() {
     setSubmitting(true)
     try {
       const r = await postBatchClickApp({
+        task_type: taskType,
         identify_pool_id: pid,
         mode,
         device_ids: selectedIds,
@@ -134,7 +143,7 @@ export function AppClickTaskPage() {
   return (
     <div className="space-y-4 max-w-5xl">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">搜索产品点击APP版本</h1>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/30">
