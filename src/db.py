@@ -1835,7 +1835,7 @@ class Database:
                   AND a.totp_set_at IS NULL
                   AND COALESCE(a.totp_secret, '') = ''
                   AND COALESCE(r.sms_link, '') <> ''
-                ORDER BY a.id ASC, r.id DESC
+                ORDER BY a.id DESC, r.id DESC
                 LIMIT 1
                 """
             )

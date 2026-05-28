@@ -276,7 +276,6 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
   日志收集器.添加("[关键词广告APP版本] 步骤5 关键词广告点击APP版本_搜索并点击目标任务广告 完成");
 }
 
-
 function 关键词广告点击APP版本_搜索并点击目标任务广告_TEST() {
   var 品牌 = "HOMEIDEAS"
   日志收集器.添加("正在检测界面是否存在品牌======" + 品牌);
@@ -582,7 +581,6 @@ function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
 
 }
 
-
 function 关键词广告点击APP版本_登录亚马逊账号(task) {
   var loginResp = 运维接口.随机获取登录账号();
   var loginAcc = loginResp && loginResp.account ? loginResp.account : {};
@@ -639,7 +637,6 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
     sleep(随机区间(4000, 8000));
   }
 
-
   日志收集器.添加("进入输入密码流程=" + 亚马逊账号密码)
   var 亚马逊账号密码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='SecureTextField' and @index=7 and @label='Amazon password']").getOneNodeInfo(5000);
   if (!亚马逊账号密码输入框) {
@@ -659,33 +656,36 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
     throw new Error("没找到 [登录按钮]");
   }
   登录按钮.clickCenter();
-  sleep(随机区间(4000, 8000));
-
-  日志收集器.添加("进入输入OTP流程")
-  var OTP输入框 = xpath(" //node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=6]").getOneNodeInfo(5000);
-  if (!OTP输入框) {
-    throw new Error("没找到 [OTP输入框]");
-  }
-  var otpObj = 运维接口.获取亚马逊账号TOTP码(手机号码);
-  var OTP = otpObj && otpObj.totp_code ? String(otpObj.totp_code).trim() : "";
-  if (OTP.length !== 6) {
-    throw new Error("未获取到有效TOTP验证码");
-  }
-  日志收集器.添加("点击OTP输入框")
-  OTP输入框.clickRandom();
-  sleep(随机区间(4000, 8000));
-  逐字输入(OTP);
-  日志收集器.添加("OTP结束结束=" + OTP)
-  sleep(随机区间(2000, 5000));
-
-
-  日志收集器.添加("点击登录按钮")
-  var 登录按钮 = xpath("node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=8 and @label='Sign in']").getOneNodeInfo(5000);
-  if (!登录按钮) {
-    throw new Error("没找到 [登录按钮]");
-  }
-  登录按钮.clickRandom();
   sleep(随机区间(10000, 15000));
+
+  var 个人中心页面 = name("Your Orders").getOneNodeInfo(5000);
+  if(!个人中心页面){
+    日志收集器.添加("进入输入OTP流程")
+    var OTP输入框 = xpath(" //node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=6]").getOneNodeInfo(5000);
+    if (!OTP输入框) {
+      throw new Error("没找到 [OTP输入框]");
+    }
+    var otpObj = 运维接口.获取亚马逊账号TOTP码(手机号码);
+    var OTP = otpObj && otpObj.totp_code ? String(otpObj.totp_code).trim() : "";
+    if (OTP.length !== 6) {
+      throw new Error("未获取到有效TOTP验证码");
+    }
+    日志收集器.添加("点击OTP输入框")
+    OTP输入框.clickRandom();
+    sleep(随机区间(4000, 8000));
+    逐字输入(OTP);
+    日志收集器.添加("OTP结束结束=" + OTP)
+    sleep(随机区间(2000, 5000));
+
+    日志收集器.添加("点击登录按钮")
+    var 登录按钮 = xpath("node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=8 and @label='Sign in']").getOneNodeInfo(5000);
+    if (!登录按钮) {
+      throw new Error("没找到 [登录按钮]");
+    }
+    登录按钮.clickRandom();
+    sleep(随机区间(10000, 15000));
+  }
+
 
   日志收集器.添加("检查账号登录是否成功");
   var 个人中心页面 = name("Your Orders").getOneNodeInfo(5000);
@@ -706,8 +706,6 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
   日志收集器.添加("已跳转到个人中心页面，登录成功");
   return true;
 }
-
-
 
 function 关键词广告点击APP版本_打开亚马逊APP() {
   var launched = false;

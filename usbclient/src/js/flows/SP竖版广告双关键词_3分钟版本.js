@@ -201,7 +201,7 @@ function SP竖版广告双关键词_3分钟版本_搜索并点击目标任务广
         if (child && child.type == "Other") {
           var bounds = child.bounds;
           var height = bounds.bottom - bounds.top
-          if (bounds.top > -100 && bounds.bottom < 1800
+          if (bounds.top > 100 && bounds.bottom < 1800
             && bounds.right <= 900 && bounds.right >= 700
             && height > 500) {
             resultNodes.push(child);
@@ -229,20 +229,6 @@ function SP竖版广告双关键词_3分钟版本_搜索并点击目标任务广
               } else {
                 日志收集器.添加('名称节点不在可视范围内');
               }
-            } else if (node.getOneNodeInfo(xpath(".//node[contains(@name, 'Sponsored')]"), 5000)) {
-              日志收集器.添加('检测到商标存在广告-有广告[检测到跟节点存在广告]-检测节点是否在可视范围内');
-              if (名称节点.bounds.left > 0 && 名称节点.bounds.right < 900) {
-                日志收集器.添加('名称节点在可视范围内-执行点击详情');
-                名称节点.clickCenter();
-                sleep(随机区间(4000, 8000));
-                点击广告次数 = 点击广告次数 + 1;
-                SP竖版广告双关键词_3分钟版本_浏览详情页面(品牌, 关键词);
-                break;
-              } else {
-                日志收集器.添加('名称节点不在可视范围内');
-              }
-            } else {
-              日志收集器.添加('没有检测到商标存在广告-无广告');
             }
           } else {
             日志收集器.添加('没找到名称节点');

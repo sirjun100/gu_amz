@@ -97,8 +97,7 @@ var 运维接口 = {
    */
   获取未设置OTP亚马逊账号: function () {
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/needs-totp";
-    var params = { device_id: AMZ_CONFIG.deviceId };
-    var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
+    var res = http.httpGet(url, {}, AMZ_CONFIG.httpTimeoutMs, null);
     if (res == null || res === "") {
       return null;
     }

@@ -44,6 +44,7 @@ function 亚马逊账号设置OTP_开始() {
   var 已处理数量 = 0;
   while (true) {
     var 账号响应 = 运维接口.获取未设置OTP亚马逊账号();
+    logd(账号响应.toString());
     var 账号 = 账号响应 && 账号响应.account ? 账号响应.account : null;
     if (!账号) {
       日志收集器.添加("[亚马逊账号设置OTP] 没有找到需要设置OTP的账号，已处理数量=" + 已处理数量);
@@ -82,6 +83,10 @@ function 亚马逊账号设置OTP_开始() {
         throw new Error("步骤2 失败：打开 亚马逊APP");
       }
 
+      日志收集器.添加("[亚马逊账号设置OTP] 步骤3/5 登录亚马逊账号");
+      if (!亚马逊账号设置OTP_登录亚马逊账号()) {
+        throw new Error("步骤2 失败：登录亚马逊账号");
+      }
 
       日志收集器.添加("[亚马逊账号设置OTP] 步骤4/5 亚马逊账号设置OTP_设置二步验证");
       亚马逊账号设置OTP_设置二步验证(task);
@@ -98,7 +103,131 @@ function 亚马逊账号设置OTP_开始() {
   }
 }
 
+function 亚马逊账号设置OTP_登录亚马逊账号(task) {
 
+  var p = (task != null && task.params) || {};
+  var 手机接码网址 = String(p.sms_link != null ? p.sms_link : "").trim();
+  var 手机号码 = String(p.phone != null ? p.phone : "").trim();
+  var 亚马逊账号密码 = String(p.password != null ? p.password : "").trim();
+
+  日志收集器.添加("点击【菜单栏目个人中心图标】")
+  var 菜单栏目个人中心图标 = 找图("菜单栏目个人中心图标.png");
+  if (菜单栏目个人中心图标) {
+    日志收集器.添加("已找到-点击【菜单栏目个人中心图标】")
+    clickPoint(菜单栏目个人中心图标.x, 菜单栏目个人中心图标.y);
+  } else {
+    clickPoint(310, 1677);
+  }
+  sleep(随机区间(2000, 3000));
+
+  日志收集器.添加("点击【SIGN IN】");
+  var Sign_in = name("Sign in").type("Button").getOneNodeInfo(5000);
+  if (!Sign_in) {
+    日志收集器.添加("没找到 [菜单栏目个人中心图标]");
+    clickPoint(372, 544);
+  }
+  Sign_in.clickCenter();
+  sleep(随机区间(20000, 30000));
+
+
+  日志收集器.添加("开始收入手机号=" + 手机号码)
+  var 注册页面识别输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=2 and @label='Enter mobile number or email']").getOneNodeInfo(5000);
+  if (!注册页面识别输入框) {
+    throw new Error("没找到 [注册页面识别输入框]");
+  }
+  日志收集器.添加("点击识别输入框")
+  注册页面识别输入框.clickCenter();
+  sleep(随机区间(4000, 8000));
+  逐字输入(手机号码);
+  日志收集器.添加("手机号输入结束" + 手机号码)
+  sleep(随机区间(4000, 8000));
+
+  日志收集器.添加("点击继续登录按钮");
+  var 继续按钮注册按钮 = name("Continue").getOneNodeInfo(5000);
+  if (!继续按钮注册按钮) {
+    throw new Error("没找到 [点击继续按钮]");
+  }
+  继续按钮注册按钮.clickCenter();
+  sleep(随机区间(4000, 8000));
+
+  // var 通过密码登录按钮= name("Sign in with your password").getOneNodeInfo(5000);
+  // if(通过密码登录按钮){
+  //   日志收集器.添加("检测到通过密码登录按钮，先点击按钮")
+  //   通过密码登录按钮.clickCenter();
+  //   sleep(随机区间(4000, 8000));
+  // }
+  //
+  //
+  // 日志收集器.添加("进入输入密码流程=" + 亚马逊账号密码)
+  // var 亚马逊账号密码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='SecureTextField' and @index=7 and @label='Amazon password']").getOneNodeInfo(5000);
+  // if (!亚马逊账号密码输入框) {
+  //   throw new Error("没找到 [亚马逊账号密码输入框]");
+  // }
+  // 日志收集器.添加("点击亚马逊账号密码输入框")
+  // 亚马逊账号密码输入框.clickCenter();
+  // sleep(随机区间(4000, 8000));
+  // 逐字输入(亚马逊账号密码);
+  // 日志收集器.添加("亚马逊账号密码结束结束=" + 亚马逊账号密码)
+  // sleep(随机区间(4000, 8000));
+  // 日志收集器.添加("点击登录按钮");
+  // var 登录按钮 = name("Sign in").type("Button").getOneNodeInfo(5000);
+  // if (!登录按钮) {
+  //   throw new Error("没找到 [登录按钮]");
+  // }
+  // 登录按钮.clickCenter();
+  // sleep(随机区间(4000, 8000));
+
+  日志收集器.添加("进入输入手机验证码流程")
+  var authenticationRequired界面 = name("Authentication required").getOneNodeInfo(5000);
+  //下面是输入框的XPATH，备用
+  //node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=4]
+  if (!authenticationRequired界面) {
+    throw new Error("没找到 [authenticationRequired界面]");
+  }
+
+  日志收集器.添加("获取验证码->"+手机接码网址);
+  var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
+  if (!验证码 || String(验证码).length !== 6) {
+    日志收集器.添加("手机短信超时或无效");
+    throw new Error("手机短信验证码超时或无效");
+  }
+
+  日志收集器.添加("点击OTP输入框")
+  // 手机验证码输入框.clickRandom();
+  clickPoint(388,640);
+  sleep(随机区间(4000, 8000));
+  逐字输入(验证码);
+  日志收集器.添加("手机验证码流程结束=" + 验证码)
+  sleep(随机区间(2000, 5000));
+
+
+  日志收集器.添加("点击登录按钮")
+  var 登录按钮 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Button' and @index=5 and @label='Verify OTP Button']").getOneNodeInfo(5000);
+  if (!登录按钮) {
+    throw new Error("没找到 [登录按钮]");
+  }
+  登录按钮.clickRandom();
+  sleep(随机区间(10000, 15000));
+
+  日志收集器.添加("检查账号登录是否成功");
+  var 个人中心页面 = name("Your Orders").getOneNodeInfo(5000);
+  if (!个人中心页面) {
+    try {
+      var 登录失败截图路径 = AMZ_截屏保存到临时文件();
+      if (登录失败截图路径) {
+        运维接口.上报亚马逊账号登录失败(手机号码, 登录失败截图路径, "未进入Your Orders，判定登录失败");
+        if (typeof file !== "undefined" && file != null && typeof file.deleteAllFile === "function") {
+          file.deleteAllFile(登录失败截图路径);
+        }
+      }
+    } catch (eLoginFailReport) {
+      日志收集器.添加("登录失败上报异常: " + eLoginFailReport);
+    }
+    throw new Error("没找到 [个人中心页面，登录失败]");
+  }
+  日志收集器.添加("已跳转到个人中心页面，登录成功");
+  return true;
+}
 
 function 亚马逊账号设置OTP_设置二步验证(task) {
   var p = (task != null && task.params) || {};

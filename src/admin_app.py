@@ -1623,10 +1623,7 @@ async def client_random_login_account(
 
 
 @app.get("/api/v1/client/amazon-accounts/needs-totp")
-async def client_amazon_account_needs_totp(
-    device_id: str = Query(..., min_length=1),
-):
-    db.upsert_device_heartbeat(device_id)
+async def client_amazon_account_needs_totp():
     row = db.pick_amazon_account_needing_totp()
     if not row:
         return {"account": None}
