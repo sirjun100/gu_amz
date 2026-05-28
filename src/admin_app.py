@@ -1299,10 +1299,12 @@ async def client_amazon_accounts_address_done(body: ClientAmazonAccountStageBody
 @app.post("/api/v1/client/amazon-accounts/totp-qr")
 async def client_amazon_accounts_totp_qr(
     phone: str = Form(..., min_length=1, max_length=64),
-    device_id: str = Form(...),
+    device_id: Optional[str] = Form(None),
     image: UploadFile = File(...),
 ):
-    db.upsert_device_heartbeat(device_id)
+    did = (device_id or "").strip()
+    if did:
+        db.upsert_device_heartbeat(did)
     raw = await image.read()
     if not raw:
         raise HTTPException(status_code=400, detail="鍥剧墖涓虹┖")
@@ -1313,7 +1315,7 @@ async def client_amazon_accounts_totp_qr(
         LOGGER.warning(
             "totp-qr failed phone=%s device=%s file=%s size=%s error=%s",
             phone,
-            device_id,
+            did,
             image.filename or "totp.png",
             len(raw),
             out.get("error") or "unknown",

@@ -84,7 +84,7 @@ function 亚马逊账号设置OTP_开始() {
       }
 
       日志收集器.添加("[亚马逊账号设置OTP] 步骤3/5 登录亚马逊账号");
-      if (!亚马逊账号设置OTP_登录亚马逊账号()) {
+      if (!亚马逊账号设置OTP_登录亚马逊账号(task)) {
         throw new Error("步骤2 失败：登录亚马逊账号");
       }
 
@@ -118,15 +118,17 @@ function 亚马逊账号设置OTP_登录亚马逊账号(task) {
   } else {
     clickPoint(310, 1677);
   }
-  sleep(随机区间(2000, 3000));
+  sleep(随机区间(30000, 50000));
 
   日志收集器.添加("点击【SIGN IN】");
   var Sign_in = name("Sign in").type("Button").getOneNodeInfo(5000);
   if (!Sign_in) {
-    日志收集器.添加("没找到 [菜单栏目个人中心图标]");
+    日志收集器.添加("没找到 点击【SIGN IN] 尝试坐标");
     clickPoint(372, 544);
+  }else{
+    Sign_in.clickCenter();
   }
-  Sign_in.clickCenter();
+
   sleep(随机区间(20000, 30000));
 
 

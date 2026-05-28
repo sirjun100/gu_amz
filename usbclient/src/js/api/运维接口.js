@@ -329,7 +329,7 @@ var 运维接口 = {
       return null;
     }
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/amazon-accounts/totp-qr";
-    var params = { phone: ph, device_id: AMZ_CONFIG.deviceId };
+    var params = { phone: ph };
     var files = { image: p };
     var res = http.httpPost(url, params, files, AMZ_CONFIG.httpTimeoutMs, null);
     logd("totp-qr => " + res);
