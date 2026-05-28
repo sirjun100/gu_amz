@@ -152,32 +152,6 @@ function 亚马逊账号设置OTP_登录亚马逊账号(task) {
   继续按钮注册按钮.clickCenter();
   sleep(随机区间(4000, 8000));
 
-  // var 通过密码登录按钮= name("Sign in with your password").getOneNodeInfo(5000);
-  // if(通过密码登录按钮){
-  //   日志收集器.添加("检测到通过密码登录按钮，先点击按钮")
-  //   通过密码登录按钮.clickCenter();
-  //   sleep(随机区间(4000, 8000));
-  // }
-  //
-  //
-  // 日志收集器.添加("进入输入密码流程=" + 亚马逊账号密码)
-  // var 亚马逊账号密码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='SecureTextField' and @index=7 and @label='Amazon password']").getOneNodeInfo(5000);
-  // if (!亚马逊账号密码输入框) {
-  //   throw new Error("没找到 [亚马逊账号密码输入框]");
-  // }
-  // 日志收集器.添加("点击亚马逊账号密码输入框")
-  // 亚马逊账号密码输入框.clickCenter();
-  // sleep(随机区间(4000, 8000));
-  // 逐字输入(亚马逊账号密码);
-  // 日志收集器.添加("亚马逊账号密码结束结束=" + 亚马逊账号密码)
-  // sleep(随机区间(4000, 8000));
-  // 日志收集器.添加("点击登录按钮");
-  // var 登录按钮 = name("Sign in").type("Button").getOneNodeInfo(5000);
-  // if (!登录按钮) {
-  //   throw new Error("没找到 [登录按钮]");
-  // }
-  // 登录按钮.clickCenter();
-  // sleep(随机区间(4000, 8000));
 
   日志收集器.添加("进入输入手机验证码流程")
   var authenticationRequired界面 = name("Authentication required").getOneNodeInfo(5000);
@@ -250,34 +224,11 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
   账号设置图标.clickCenter();
   sleep(随机区间(7000, 10000));
 
-  //your_account_menu_item_loginSecurity  另外一种情况【非注册情况】
-  // 日志收集器.添加("找【Login & security】图片并点击");
-  // var 登录与安全 = undefined;
-  // for(let i=0;i<3;i++){
-  //   sleep(随机区间(2000, 4000));
-  //   // 登录与安全 = 找节点("Login & security");
-  //   登录与安全 = 找图("Login & security.png");
-  //   if(!登录与安全){
-  //     var 登录与安全2 = 找图("Login & security2.png");
-  //     登录与安全 = 登录与安全2;
-  //   }
-  //   if (登录与安全) {
-  //     break;
-  //   }
-  //   向下滑一次();
-  // }
-  // if(!登录与安全){
-  //   日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到账号与安全按钮");
-  //   throw new Error("没有找到账号与安全按钮");
-  // }
-  // clickPoint(登录与安全.x,登录与安全.y);
-  // sleep(随机区间(8000, 12000));
-
-
   日志收集器.添加("找【Login & security】并点击");
-  var 登录与安全 = 找可视化节点NAME("Login & security");
+  var 登录与安全 = name("your_account_menu_item_loginSecurity").getOneNodeInfo(5000);
   if(!登录与安全){
-    登录与安全 = 找可视化节点NAME("your_account_menu_item_loginSecurity");
+    //your_account_menu_item_loginSecurity
+    登录与安全 = 找可视化节点NAME("Login & security");
     if(!登录与安全){
       日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到[Login & security]");
       throw new Error("没有找到[Login & security]");
@@ -342,7 +293,7 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
     }
     日志收集器.添加("上传结果 " + 上传结果日志);
 
-    file.deleteAllFile(totp截图路径);
+    //file.deleteAllFile(totp截图路径);
     if (totp上传结果 && totp上传结果.totp_code) {
       OTP验证码 = String(totp上传结果.totp_code);
       break;

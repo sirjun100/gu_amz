@@ -85,7 +85,7 @@ function AMZ_截屏保存到临时文件() {
     return "";
   }
 
-  var tmp = file.getSandBoxDir() + "/amz_screenfail_" + new Date().getTime() + ".jpg";
+  var tmp = file.getSandBoxDir() + "\\amz_screenfail_" + new Date().getTime() + ".jpg";
   try {
     if (typeof img.saveTo === "function" && img.saveTo(tmp) === true) {
       return tmp;
