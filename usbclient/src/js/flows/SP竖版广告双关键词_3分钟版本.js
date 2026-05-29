@@ -19,13 +19,15 @@ function SP竖版广告双关键词_3分钟版本(task) {
     throw new Error("步骤2 失败：打开 亚马逊APP");
   }
 
+  if (!SP竖版广告双关键词_3分钟版本_打开亚马逊首页并随机浏览()) {
+    throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
+  }
+
   日志收集器.添加("[SP竖版广告双关键词_3分钟版本] 步骤2/5 登录亚马逊账号");
   SP竖版广告双关键词_3分钟版本_登录亚马逊账号(task);
 
   日志收集器.添加("[SP竖版广告双关键词_3分钟版本] 步骤3/5 打开亚马逊首页并随机浏览");
-  if (!SP竖版广告双关键词_3分钟版本_打开亚马逊首页并随机浏览()) {
-    throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
-  }
+
 
   日志收集器.添加("[SP竖版广告双关键词_3分钟版本] 步骤4/5 随机关键词搜索浏览");
   if (!SP竖版广告双关键词_3分钟版本_搜索随机关键词浏览并加购()) {
@@ -298,13 +300,6 @@ function SP竖版广告双关键词_3分钟版本_搜索并点击目标任务广
         logd(`$Other: L=${bounds.left}, T=${bounds.top}, R=${bounds.right}, B=${bounds.bottom}`);
       }
     }
-
-    // sp_video视频广告 ： bottom-top = 878  并且包含：  Sponsored video  直接判断为广告
-    // 常规广告： bottom-top=954
-    // 1182
-
-
-
   }
 
   logd("共找到 " + resultNodes.length + " 个符合条件的直接子节点【已显示的节点】");
@@ -598,7 +593,7 @@ function SP竖版广告双关键词_3分钟版本_登录亚马逊账号(task) {
   sleep(随机区间(20000, 30000));
 
 
-  日志收集器.添加("开始收入手机号=" + 手机号码)
+  日志收集器.添加("开始输入手机号=" + 手机号码)
   var 注册页面识别输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=2 and @label='Enter mobile number or email']").getOneNodeInfo(5000);
   if (!注册页面识别输入框) {
     throw new Error("没找到 [注册页面识别输入框]");

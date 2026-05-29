@@ -92,13 +92,8 @@ function 亚马逊账号设置OTP_开始() {
       亚马逊账号设置OTP_设置二步验证(task);
       已处理数量 = 已处理数量 + 1;
       日志收集器.添加("[亚马逊账号设置OTP] 当前账号设置完成 phone=" + 账号参数.phone);
-    } finally {
-      try {
-        appKillByBundleIdEx("com.amazon.Amazon");
-        logd("[亚马逊账号设置OTP] 已尝试关闭");
-      } catch (eKill) {
-        logw("[亚马逊账号设置OTP] 关闭 Amazon: " + eKill);
-      }
+    } catch {
+      日志收集器.添加("[亚马逊账号设置OTP] 任务出错啦！phone=" + 账号参数.phone);
     }
   }
 }
@@ -293,7 +288,7 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
     }
     日志收集器.添加("上传结果 " + 上传结果日志);
 
-    //file.deleteAllFile(totp截图路径);
+    file.deleteAllFile(totp截图路径);
     if (totp上传结果 && totp上传结果.totp_code) {
       OTP验证码 = String(totp上传结果.totp_code);
       break;
