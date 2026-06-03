@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<hierarchy wh="828,1792" orientation="1" scale="2.000000" nid="197280895I3PEWN2A" childcount="1" left="" top=""> 
+ <node depth="0" type="Application" id="" name="AMG" value="" label="AMG" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="17214971569BJTOERL" childcount="2" left="0" top="0" right="828" bottom="1792"> 
+  <node depth="1" type="Window" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="2059563109Q9NRGWVY" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+   <node depth="2" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1672871783M2RHFOV8" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+    <node depth="3" type="Alert" id="" name="您确认删除该条备份记录?" value="" label="您确认删除该条备份记录?" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="206029998638X4MLFE" childcount="1" left="144" top="806" right="684" bottom="1016"> 
+     <node depth="4" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="1138576921SYEWUC9V" childcount="1" left="144" top="806" right="684" bottom="1016"> 
+      <node depth="5" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="712331103QAD2QXV3" childcount="2" left="144" top="806" right="684" bottom="1016"> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="1727513521WVEUCMM7" childcount="1" left="144" top="806" right="684" bottom="1016"> 
+        <node depth="7" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="1910200963MH830ZXO" childcount="2" left="144" top="806" right="684" bottom="1016"> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="1482653479FHVHT6JF" childcount="0" left="144" top="806" right="684" bottom="1016"></node> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="1490078916XTCE7OMA" childcount="0" left="144" top="806" right="684" bottom="1016"></node> 
+        </node> 
+       </node> 
+       <node depth="6" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="144" y="806" width="540" height="210" bounds="[144,806][684,1016]" nid="64527729V03JWG6" childcount="3" left="144" top="806" right="684" bottom="1016"> 
+        <node depth="7" type="ScrollView" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="806" width="540" height="120" bounds="[144,806][684,926]" nid="7344076571RD0YKWC" childcount="3" left="144" top="806" right="684" bottom="926"> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="806" width="540" height="120" bounds="[144,806][684,926]" nid="147050481ZRV4DPT5" childcount="1" left="144" top="806" right="684" bottom="926"> 
+          <node depth="9" type="StaticText" id="" name="您确认删除该条备份记录?" value="您确认删除该条备份记录?" label="您确认删除该条备份记录?" enable="true" accessible="true" selected="false" index="0" visible="true" x="176" y="846" width="476" height="42" bounds="[176,846][652,888]" nid="1445692609NFZRUT30" childcount="0" left="176" top="846" right="652" bottom="888"></node> 
+         </node> 
+         <node depth="8" type="Other" id="" name="Vertical scroll bar, 1 page" value="0%" label="Vertical scroll bar, 1 page" enable="true" accessible="false" selected="false" index="1" visible="false" x="618" y="806" width="60" height="120" bounds="[618,806][678,926]" nid="1164647286YVPFC8CM" childcount="0" left="618" top="806" right="678" bottom="926"></node> 
+         <node depth="8" type="Other" id="" name="Horizontal scroll bar, 1 page" value="0%" label="Horizontal scroll bar, 1 page" enable="true" accessible="false" selected="false" index="2" visible="false" x="144" y="860" width="540" height="60" bounds="[144,860][684,920]" nid="1609099601HBBL7LGH" childcount="0" left="144" top="860" right="684" bottom="920"></node> 
+        </node> 
+        <node depth="7" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="144" y="926" width="540" height="2" bounds="[144,926][684,928]" nid="12374571784XTFSVKD" childcount="1" left="144" top="926" right="684" bottom="928"> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="926" width="540" height="2" bounds="[144,926][684,928]" nid="1128628591B77XV5QA" childcount="1" left="144" top="926" right="684" bottom="928"> 
+          <node depth="9" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="926" width="540" height="2" bounds="[144,926][684,928]" nid="15923002507CB6WUMP" childcount="0" left="144" top="926" right="684" bottom="928"></node> 
+         </node> 
+        </node> 
+        <node depth="7" type="ScrollView" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="2" visible="true" x="144" y="926" width="540" height="90" bounds="[144,926][684,1016]" nid="1179802167I43WSNZD" childcount="3" left="144" top="926" right="684" bottom="1016"> 
+         <node depth="8" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="926" width="540" height="90" bounds="[144,926][684,1016]" nid="5285850062NZC94SK" childcount="1" left="144" top="926" right="684" bottom="1016"> 
+          <node depth="9" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="926" width="540" height="90" bounds="[144,926][684,1016]" nid="188954759240EM8DD4" childcount="3" left="144" top="926" right="684" bottom="1016"> 
+           <node depth="10" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="144" y="926" width="270" height="90" bounds="[144,926][414,1016]" nid="1791236036XQ6I1HNC" childcount="1" left="144" top="926" right="414" bottom="1016"> 
+            <node depth="11" type="Button" id="" name="取消" value="" label="取消" enable="true" accessible="true" selected="false" index="0" visible="true" x="144" y="926" width="270" height="90" bounds="[144,926][414,1016]" nid="1049848649YEGW5E5O" childcount="0" left="144" top="926" right="414" bottom="1016"></node> 
+           </node> 
+           <node depth="10" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="true" x="414" y="926" width="2" height="90" bounds="[414,926][416,1016]" nid="7555331401XGG7ZWN" childcount="1" left="414" top="926" right="416" bottom="1016"> 
+            <node depth="11" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="414" y="926" width="2" height="90" bounds="[414,926][416,1016]" nid="1559490504Z8GD4XVW" childcount="1" left="414" top="926" right="416" bottom="1016"> 
+             <node depth="12" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="true" x="414" y="926" width="2" height="90" bounds="[414,926][416,1016]" nid="3735330935P0LCA34" childcount="0" left="414" top="926" right="416" bottom="1016"></node> 
+            </node> 
+           </node> 
+           <node depth="10" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="2" visible="true" x="414" y="926" width="270" height="90" bounds="[414,926][684,1016]" nid="8587389518ZYJZ1VF" childcount="1" left="414" top="926" right="684" bottom="1016"> 
+            <node depth="11" type="Button" id="" name="删除" value="" label="删除" enable="true" accessible="true" selected="false" index="0" visible="true" x="414" y="926" width="270" height="90" bounds="[414,926][684,1016]" nid="1524912147JI3E7QHZ" childcount="0" left="414" top="926" right="684" bottom="1016"></node> 
+           </node> 
+          </node> 
+         </node> 
+         <node depth="8" type="Other" id="" name="Vertical scroll bar, 1 page" value="0%" label="Vertical scroll bar, 1 page" enable="true" accessible="false" selected="false" index="1" visible="false" x="618" y="926" width="60" height="90" bounds="[618,926][678,1016]" nid="4305984407DCGHP64" childcount="0" left="618" top="926" right="678" bottom="1016"></node> 
+         <node depth="8" type="Other" id="" name="Horizontal scroll bar, 1 page" value="0%" label="Horizontal scroll bar, 1 page" enable="true" accessible="false" selected="false" index="2" visible="false" x="144" y="964" width="540" height="46" bounds="[144,964][684,1010]" nid="305128761ZRR0F35M" childcount="0" left="144" top="964" right="684" bottom="1010"></node> 
+        </node> 
+       </node> 
+      </node> 
+     </node> 
+    </node> 
+   </node> 
+  </node> 
+  <node depth="1" type="Window" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="1539389714YSNUURIQ" childcount="1" left="0" top="0" right="828" bottom="1792"> 
+   <node depth="2" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="59333393754R5MGUK" childcount="2" left="0" top="0" right="828" bottom="1792"> 
+    <node depth="3" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="0" visible="false" x="0" y="0" width="828" height="1792" bounds="[0,0][828,1792]" nid="17776150671L5S4HP6" childcount="0" left="0" top="0" right="828" bottom="1792"></node> 
+    <node depth="3" type="Other" id="" name="" value="" label="" enable="true" accessible="false" selected="false" index="1" visible="false" x="0" y="1792" width="828" height="486" bounds="[0,1792][828,2278]" nid="69166833NJOO59SS" childcount="0" left="0" top="1792" right="828" bottom="2278"></node> 
+   </node> 
+  </node> 
+ </node> 
+</hierarchy>

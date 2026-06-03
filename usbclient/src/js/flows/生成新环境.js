@@ -25,22 +25,20 @@ function 生成新环境_开始执行(){
 
     日志收集器.添加("[生成新环境] 步骤5/5 生成新环境_在登录页面停留");
     if (!生成新环境_在登录页面停留()) {
-        throw new Error("步骤4 失败：生成新环境_在登录页面停留");
+        生成新环境_返回到HOME界面();
+        生成新环境_AMG重命名环境();
     }
-    return true;
 }
 
 
 function 生成新环境_AMG重命名环境() {
-
     var attempt = 0;
     for (attempt = 0; attempt < 1; attempt++) {
-        logd("[注册亚马逊] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
+        logd("[生成新环境] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
         var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
         if (AMG应用图标按钮) {
             clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
             sleep(3000);
-
             日志收集器.添加("判断当前页面");
             var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
             if(AMG){
@@ -51,70 +49,54 @@ function 生成新环境_AMG重命名环境() {
                 日志收集器.添加("在首页");
             }
 
+            日志收集器.添加("AMG-点击备份记录");
+            var 备份记录 = name("备份记录").getOneNodeInfo(5000);
+            备份记录.clickCenter();
+            sleep(5000);
 
+            日志收集器.添加("查找下一条按钮，切换环境");
+            var 下一条按钮 = name("下一条").getOneNodeInfo(5000);
+            if (!下一条按钮) {
+                日志收集器.添加("没有找到AMG下一条按钮-直接点击硬坐标(730,1677)");
+                clickPoint(730, 1677);
+            }
+            下一条按钮.clickCenter();
+            日志收集器.添加("成功点击下一条按钮。等待切换环境");
+            sleep(5000);
 
-            // 日志收集器.添加("AMG-点击备份记录");
-            // var 备份记录 = name("备份记录").getOneNodeInfo(5000);
-            // 备份记录.clickCenter();
-            // sleep(5000);
+            日志收集器.添加("AMG-左滑动");
+            var AMG勾中图标 = name("checkmark").getOneNodeInfo(5000);
+            if(!AMG勾中图标){
+              日志收集器.添加("没有找到【AMG勾中图标】图标，无法点击")
+              return false;
+            }
+            var startX = AMG勾中图标.bounds.left-50;
+            var y = AMG勾中图标.bounds.top-50;
+            var endX =  AMG勾中图标.bounds.left-150;
+            日志收集器.添加("startX:"+startX+",endX:"+endX+",y:"+y);
+            swipeToPoint(startX, y, endX,y, 500);
+            sleep(5000);
+            日志收集器.添加("AMG-点击重命名");
+            var 删除按钮 =name("删除").getOneNodeInfo(5000);
+            if(!删除按钮){
+                throw new Error("[生成新环境] 重命名按钮没找到");
+            }
+            删除按钮.clickCenter();
+            sleep(5000);
 
-            // 日志收集器.添加("AMG-左滑动");
-            // var AMG勾中图标 = name("checkmark").getOneNodeInfo(5000);
-            // if(!AMG勾中图标){
-            //   日志收集器.添加("没有找到【AMG勾中图标】图标，无法点击")
-            //   return false;
-            // }
-            // var startX = AMG勾中图标.bounds.left-50;
-            // var y = AMG勾中图标.bounds.top;
-            // var endX =  AMG勾中图标.bounds.left-150;
-            //
-            // 日志收集器.添加("startX:"+startX+",endX:"+endX+",y:"+y);
-
-
-            // swipeToPoint(startX, y, endX,y, 500);
-            // sleep(5000);
-            //
-            // 日志收集器.添加("AMG-点击重命名");
-            // var 重命名 =name("重命名").getOneNodeInfo(5000);
-            // if(!重命名){
-            //   日志收集器.添加("[注册亚马逊] 重命名按钮没找到");
-            //   return false;
-            // }
-            // 重命名.clickCenter();
-            // sleep(5000);
-
-            // var 重命名输入框 =xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Alert']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='ScrollView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='CollectionView']/node[@type='Cell']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
-            // if(!重命名输入框){
-            //   日志收集器.添加("[注册亚马逊] 重命名输入框没找到");
-            //   return false;
-            // }
-            // for (var bi = 0; bi < 30; bi++) {
-            //   ioHIDEvent("0x07", "0x2A", 0.1);
-            // }
-
-            // inputText(环境名字, 1000);
-            // sleep(1000);
-            //
-            // 日志收集器.添加("AMG-点击确定按钮");
-            // var 确定 =name("确定").getOneNodeInfo(5000);
-            // if(!确定){
-            //   日志收集器.添加("[注册亚马逊] 确定按钮没找到");
-            //   return false;
-            // }
-            // 确定.clickCenter();
-            // sleep(5000);
+            var 确认删除按钮 =name("删除").getOneNodeInfo(5000);
+            if(!确认删除按钮){
+                throw new Error("[生成新环境] 重命名按钮没找到");
+            }
+            确认删除按钮.clickCenter();
+            sleep(5000);
 
             return true;
 
         }
-        if (选择环境状态) {
-            日志收集器.添加("[注册亚马逊] 步骤1 AMG 选环境成功");
-            break;
-        }
         sleep(2000);
 
     }
-    return 选择环境状态;
 }
 
 
@@ -131,7 +113,7 @@ function 生成新环境_在登录页面停留(){
 
     var 菜单栏目个人中心图标2 = 找图("菜单栏目个人中心图标.png");
     if (菜单栏目个人中心图标2) {
-        throw new Error("检查不到 个人中心图标，可能错误了！");
+        return false;
     }
     return true;
 }
