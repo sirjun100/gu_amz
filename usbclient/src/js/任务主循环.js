@@ -27,6 +27,7 @@ var AMZ_MODULE_FILES = [
   "flows/SP竖版广告双关键词_3分钟版本.js",
   "flows/相关商品广告点击流程.js",
   "flows/同行同类广告点击流程.js",
+  "flows/生成新环境.js",
 ];
 
 function AMZ_规范化脚本根路径(base) {
@@ -177,6 +178,8 @@ function 执行一条任务(task) {
      // 同行同类广告点击流程(task);
     } else if (tt === "register") {
       亚马逊账户注册(task);
+    } else if (tt === "generate_new_environment") {
+      生成新环境_开始执行();
     } else {
       throw new Error("未知任务类型: " + tt);
     }

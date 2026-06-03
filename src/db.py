@@ -20,6 +20,7 @@ load_dotenv()
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
 APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP竖版广告双关键词_3分钟版本"})
 ALL_CLICK_TASK_TYPES = CLICK_TASK_TYPES | APP_CLICK_TASK_TYPES
+SIMPLE_TASK_TYPES = frozenset({"generate_new_environment"})
 
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
 try:
@@ -1796,6 +1797,29 @@ class Database:
                     n += 1
         return n
 
+    def insert_simple_tasks_batch(self, task_type: str, device_counts: list[tuple[str, int]]) -> int:
+        tt = (task_type or "").strip()
+        if tt not in SIMPLE_TASK_TYPES:
+            return 0
+        payload = json.dumps({}, ensure_ascii=False)
+        n = 0
+        with self._cursor() as (conn, cur):
+            for device_id, count in device_counts:
+                c = max(0, int(count))
+                did = device_id.strip() if device_id else ""
+                if not did:
+                    continue
+                for _ in range(c):
+                    cur.execute(
+                        """
+                        INSERT INTO tasks (device_id, task_type, status, params)
+                        VALUES (%s, %s, 'pending', %s)
+                        """,
+                        (did, tt, payload),
+                    )
+                    n += 1
+        return n
+
     def _pick_random_totp_ready_amazon_account_cur(self, cur) -> dict | None:
         cur.execute(
             """
@@ -2632,6 +2656,16 @@ class Database:
                     VALUES (%s, %s, 'pending', %s, %s)
                     """,
                     (row.get("device_id"), tt, payload, pd),
+                )
+                return cur.lastrowid
+            if tt in SIMPLE_TASK_TYPES:
+                payload = json.dumps(parse_task_params(row), ensure_ascii=False)
+                cur.execute(
+                    """
+                    INSERT INTO tasks (device_id, task_type, status, params)
+                    VALUES (%s, %s, 'pending', %s)
+                    """,
+                    (row.get("device_id"), tt, payload),
                 )
                 return cur.lastrowid
             if tt == "register":

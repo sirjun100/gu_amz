@@ -44,7 +44,6 @@ function 亚马逊账号设置OTP_开始() {
   var 已处理数量 = 0;
   while (true) {
     var 账号响应 = 运维接口.获取未设置OTP亚马逊账号();
-    logd(账号响应.toString());
     var 账号 = 账号响应 && 账号响应.account ? 账号响应.account : null;
     if (!账号) {
       日志收集器.添加("[亚马逊账号设置OTP] 没有找到需要设置OTP的账号，已处理数量=" + 已处理数量);
@@ -313,26 +312,6 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
   验证OTP并且继续按钮.clickRandom();
   sleep(随机区间(8000, 14000));
 
-  日志收集器.添加("提交验证码-再次手机验证");
-  var 手机验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
-  if(手机验证码输入框){
-    日志收集器.添加("获取验证码->"+手机接码网址);
-    var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
-    if (!验证码 || String(验证码).length !== 6) {
-      日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_开始注册] 手机短信超时或无效");
-      throw new Error("手机短信验证码超时或无效");
-    }
-
-    手机验证码输入框.clickRandom();
-    sleep(随机区间(1000, 3000));
-    逐字输入(验证码);
-    sleep(随机区间(1000, 3000));
-
-    日志收集器.添加("验证码->"+验证码);
-    var 提交验证码按钮 = name("Submit code").getOneNodeInfo(5000);
-    提交验证码按钮.clickRandom();
-    sleep(随机区间(8000, 14000));
-  }
 
   日志收集器.添加("可能跳继续按钮，检测一下，检测到就点击");
   var 继续按钮 = xpath('//node[@type=\'Application\']/node[@type=\'Window\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Button\' and @index=5 and @label=\'Continue\']').getOneNodeInfo(5000);
@@ -396,57 +375,6 @@ function 亚马逊账号设置OTP_打开AMG并选择环境() {
       var 一键新机 = name("一键新机").getOneNodeInfo(5000);
       一键新机.clickCenter();
       sleep(15000);
-
-      // 日志收集器.添加("AMG-点击备份记录");
-      // var 备份记录 = name("备份记录").getOneNodeInfo(5000);
-      // 备份记录.clickCenter();
-      // sleep(5000);
-
-      // 日志收集器.添加("AMG-左滑动");
-      // var AMG勾中图标 = name("checkmark").getOneNodeInfo(5000);
-      // if(!AMG勾中图标){
-      //   日志收集器.添加("没有找到【AMG勾中图标】图标，无法点击")
-      //   return false;
-      // }
-      // var startX = AMG勾中图标.bounds.left-50;
-      // var y = AMG勾中图标.bounds.top;
-      // var endX =  AMG勾中图标.bounds.left-150;
-      //
-      // 日志收集器.添加("startX:"+startX+",endX:"+endX+",y:"+y);
-
-
-      // swipeToPoint(startX, y, endX,y, 500);
-      // sleep(5000);
-      //
-      // 日志收集器.添加("AMG-点击重命名");
-      // var 重命名 =name("重命名").getOneNodeInfo(5000);
-      // if(!重命名){
-      //   日志收集器.添加("[亚马逊账号设置OTP] 重命名按钮没找到");
-      //   return false;
-      // }
-      // 重命名.clickCenter();
-      // sleep(5000);
-
-      // var 重命名输入框 =xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Alert']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='ScrollView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='CollectionView']/node[@type='Cell']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
-      // if(!重命名输入框){
-      //   日志收集器.添加("[亚马逊账号设置OTP] 重命名输入框没找到");
-      //   return false;
-      // }
-      // for (var bi = 0; bi < 30; bi++) {
-      //   ioHIDEvent("0x07", "0x2A", 0.1);
-      // }
-
-      // inputText(环境名字, 1000);
-      // sleep(1000);
-      //
-      // 日志收集器.添加("AMG-点击确定按钮");
-      // var 确定 =name("确定").getOneNodeInfo(5000);
-      // if(!确定){
-      //   日志收集器.添加("[亚马逊账号设置OTP] 确定按钮没找到");
-      //   return false;
-      // }
-      // 确定.clickCenter();
-      // sleep(5000);
 
       return true;
 

@@ -10,6 +10,7 @@ import { KeywordsPage } from '@/pages/keywords/KeywordsPage'
 import { ClickTaskPage } from '@/pages/tasks/ClickTaskPage'
 import { AppClickTaskPage } from '@/pages/tasks/AppClickTaskPage'
 import { RegisterTasksPage } from '@/pages/tasks/RegisterTasksPage'
+import { GenerateNewEnvironmentPage } from '@/pages/tasks/GenerateNewEnvironmentPage'
 import { AmazonAccountsPage } from '@/pages/autoRegister/AmazonAccountsPage'
 import { RegisterPhonePoolPage } from '@/pages/resources/RegisterPhonePoolPage'
 import { RegisterEmailPoolPage } from '@/pages/resources/RegisterEmailPoolPage'
@@ -126,6 +127,7 @@ function App() {
             }
           />
           <Route path="tasks/register" element={<RegisterTasksPage />} />
+          <Route path="tasks/generate-new-environment" element={<GenerateNewEnvironmentPage />} />
           <Route path="auto-register/amazon-accounts" element={<AmazonAccountsPage />} />
           <Route path="resources/phone-pool" element={<RegisterPhonePoolPage />} />
           <Route path="resources/email-pool" element={<RegisterEmailPoolPage />} />

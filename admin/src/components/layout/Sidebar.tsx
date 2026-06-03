@@ -84,6 +84,7 @@ function isResourceRoute(pathname: string): boolean {
 }
 
 const autoRegisterChildren: NavItem[] = [
+  { icon: Shuffle, label: '生成新环境', path: '/tasks/generate-new-environment' },
   { icon: UserPlus, label: '创建亚马逊注册任务', path: '/tasks/register' },
   { icon: ShieldCheck, label: '亚马逊账号管理', path: '/auto-register/amazon-accounts' },
 ]
@@ -93,6 +94,8 @@ function isAutoRegisterRoute(pathname: string): boolean {
   return (
     p === '/tasks/register' ||
     p.startsWith('/tasks/register/') ||
+    p === '/tasks/generate-new-environment' ||
+    p.startsWith('/tasks/generate-new-environment/') ||
     p === '/auto-register/amazon-accounts' ||
     p.startsWith('/auto-register/amazon-accounts/')
   )

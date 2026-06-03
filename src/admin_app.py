@@ -171,6 +171,13 @@ class BatchRegisterBody(BaseModel):
     )
 
 
+class BatchDeviceCountBody(BaseModel):
+    mode: str = Field(..., pattern="^(manual|smart)$")
+    device_ids: list[str] = Field(default_factory=list)
+    per_device_counts: dict[str, int] = Field(default_factory=dict)
+    total_count: int = Field(0, ge=0, le=100000)
+
+
 class AdminSettingsResponse(BaseModel):
     task_retention_days: int
 
@@ -337,6 +344,32 @@ def _distribute_total(total: int, n: int) -> list[int]:
 
 CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
 APP_CLICK_TYPES = frozenset({"search_click_app", "SP竖版广告双关键词_3分钟版本"})
+GENERATE_NEW_ENVIRONMENT_TASK_TYPE = "generate_new_environment"
+
+
+def _resolve_device_count_pairs(body: BatchDeviceCountBody) -> tuple[list[tuple[str, int]], int]:
+    device_ids = [d.strip() for d in body.device_ids if d and str(d).strip()]
+    if not device_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一台设备")
+    pairs: list[tuple[str, int]] = []
+    if body.mode == "manual":
+        for d in device_ids:
+            c = int(body.per_device_counts.get(d, 0))
+            if c > 0:
+                pairs.append((d, c))
+        n_tasks = sum(c for _, c in pairs)
+        if n_tasks <= 0:
+            raise HTTPException(status_code=400, detail="请为所选设备填写大于 0 的任务数")
+    else:
+        total = int(body.total_count)
+        if total <= 0:
+            raise HTTPException(status_code=400, detail="智能分配请填写总任务数")
+        counts = _distribute_total(total, len(device_ids))
+        pairs = [(device_ids[i], counts[i]) for i in range(len(device_ids)) if counts[i] > 0]
+        n_tasks = total
+    if not pairs:
+        raise HTTPException(status_code=400, detail="没有可分配的任务数量")
+    return pairs, n_tasks
 
 
 def _parse_ymd(value: str | None, field_name: str) -> date | None:
@@ -593,6 +626,17 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
         pairs,
         persist_data=body.save_data_record,
     )
+    return {"ok": True, "created": n}
+
+
+@app.post("/api/v1/admin/tasks/batch-generate-new-environment")
+async def admin_tasks_batch_generate_new_environment(user: CurrentUser, body: BatchDeviceCountBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    pairs, n_tasks = _resolve_device_count_pairs(body)
+    n = db.insert_simple_tasks_batch(GENERATE_NEW_ENVIRONMENT_TASK_TYPE, pairs)
+    if n != n_tasks:
+        raise HTTPException(status_code=500, detail="创建数量与预期不一致")
     return {"ok": True, "created": n}
 
 

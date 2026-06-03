@@ -208,13 +208,13 @@ function 亚马逊账户注册_设置二步验证(task) {
   // clickPoint(登录与安全.x,登录与安全.y);
   // sleep(随机区间(8000, 12000));
 
-
   日志收集器.添加("找【Login & security】并点击");
-  var 登录与安全 = 找可视化节点NAME("Login & security");
+  var 登录与安全 = name("your_account_menu_item_loginSecurity").getOneNodeInfo(5000);
   if(!登录与安全){
-    登录与安全 = 找可视化节点NAME("your_account_menu_item_loginSecurity");
+    //your_account_menu_item_loginSecurity
+    登录与安全 = 找可视化节点NAME("Login & security");
     if(!登录与安全){
-      日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到[Login & security]");
+      日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到[Login & security]");
       throw new Error("没有找到[Login & security]");
     }
   }

@@ -152,6 +152,15 @@ export function postBatchRegister(body: {
   return post<{ ok: boolean; created: number }>('/admin/tasks/batch-register', body)
 }
 
+export function postBatchGenerateNewEnvironment(body: {
+  mode: 'manual' | 'smart'
+  device_ids: string[]
+  per_device_counts: Record<string, number>
+  total_count: number
+}) {
+  return post<{ ok: boolean; created: number }>('/admin/tasks/batch-generate-new-environment', body)
+}
+
 export function fetchRegisterCodePoolsStats() {
   return get<RegisterCodePoolsStats>('/admin/register-code-pools/stats')
 }
