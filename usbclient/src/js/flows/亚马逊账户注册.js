@@ -223,10 +223,13 @@ function 亚马逊账户注册_设置二步验证(task) {
 
 
   日志收集器.添加("找开启二步按钮【Turn on】并点击");
-  var 开启二步验证按钮 = 找可视化节点NAME("Turn on two-step verification");
+  var 开启二步验证按钮 = 找可视化节点NAME("Turn on");
   if(!开启二步验证按钮){
-    日志收集器.添加("[注册亚马逊-亚马逊账户注册_设置二步验证] 没有找到开启二步验证按钮");
-    throw new Error("没有找到开启二步验证按钮");
+    开启二步验证按钮 = 找可视化节点NAME("Turn on two-step verification");
+    if(!开启二步验证按钮){
+      日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到开启二步验证按钮");
+      throw new Error("没有找到开启二步验证按钮");
+    }
   }
   开启二步验证按钮.clickCenter()
   sleep(随机区间(10000, 15000));
@@ -239,6 +242,12 @@ function 亚马逊账户注册_设置二步验证(task) {
     sleep(随机区间(10000, 15000));
   }
 
+  日志收集器.添加("可能跳Get Started按钮，检测一下，检测到就点击");
+  var Get_Started_按钮 = name("Get Started").getOneNodeInfo(5000);
+  if(Get_Started_按钮){
+    Get_Started_按钮.clickRandom();
+    sleep(随机区间(8000, 15000));
+  }
 
   日志收集器.添加("点击【Use an authenticator app】按钮");
   var 使用二次验证单选 = name("Use an authenticator app").getOneNodeInfo(5000);
@@ -603,7 +612,7 @@ function 亚马逊账户注册_打开AMG并选择环境(task) {
       日志收集器.添加("AMG-点击一键新机");
       var 一键新机 = name("一键新机").getOneNodeInfo(5000);
       一键新机.clickCenter();
-      sleep(15000);
+      sleep(50000);
 
       // 日志收集器.添加("AMG-点击备份记录");
       // var 备份记录 = name("备份记录").getOneNodeInfo(5000);
