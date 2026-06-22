@@ -73,6 +73,12 @@ function 亚马逊账号设置OTP_开始() {
         throw new Error("步骤1 失败：打开 AMG 并选择环境");
       }
 
+      日志收集器.添加("正在联网");
+      if (!运维接口.检查网络()) {
+        日志收集器.添加("联网失败---");
+        continue;
+      }
+
       日志收集器.添加("[亚马逊账号设置OTP] 步骤1 完成；返回桌面");
       if (!亚马逊账号设置OTP_返回到HOME界面()) {
         throw new Error("步骤1 后失败：无法返回主屏幕");
@@ -233,10 +239,13 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
 
 
   日志收集器.添加("找开启二步按钮【Turn on】并点击");
-  var 开启二步验证按钮 = 找可视化节点NAME("Turn on two-step verification");
+  var 开启二步验证按钮 = 找可视化节点NAME("Turn on");
   if(!开启二步验证按钮){
-    日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到开启二步验证按钮");
-    throw new Error("没有找到开启二步验证按钮");
+    开启二步验证按钮 = 找可视化节点NAME("Turn on two-step verification");
+    if(!开启二步验证按钮){
+      日志收集器.添加("[亚马逊账号设置OTP-亚马逊账号设置OTP_设置二步验证] 没有找到开启二步验证按钮");
+      throw new Error("没有找到开启二步验证按钮");
+    }
   }
   开启二步验证按钮.clickCenter()
   sleep(随机区间(10000, 15000));
@@ -247,6 +256,13 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
   if(继续按钮){
     继续按钮.clickRandom();
     sleep(随机区间(10000, 15000));
+  }
+
+  日志收集器.添加("可能跳Get Started按钮，检测一下，检测到就点击");
+  var Get_Started_按钮 = name("Get Started").getOneNodeInfo(5000);
+  if(Get_Started_按钮){
+    Get_Started_按钮.clickRandom();
+    sleep(随机区间(8000, 15000));
   }
 
 
@@ -319,14 +335,13 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
     继续按钮.clickRandom();
     sleep(随机区间(8000, 14000));
   }
-
-  日志收集器.添加("最后的设置，开启二步验证-勾选复选框");
-  var 不在此浏览器验证OTP的复选框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0 and @label='Amazon Two-Step Verification']").getOneNodeInfo(5000);
-  if (!不在此浏览器验证OTP的复选框) {
-    throw new Error("没找到 [不在此浏览器验证OTP的复选框]");
-  }
-  不在此浏览器验证OTP的复选框.clickRandom();
-  sleep(随机区间(1000, 3000));
+  // 日志收集器.添加("最后的设置，开启二步验证-勾选复选框");
+  // var 不在此浏览器验证OTP的复选框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other' and @index=0 and @label='Amazon Two-Step Verification']").getOneNodeInfo(5000);
+  // if (!不在此浏览器验证OTP的复选框) {
+  //   throw new Error("没找到 [不在此浏览器验证OTP的复选框]");
+  // }
+  // 不在此浏览器验证OTP的复选框.clickRandom();
+  // sleep(随机区间(1000, 3000));
   日志收集器.添加("点击开启开关-点击按钮");
   //开启二步验证的按钮.png
   var 开启二步验证的按钮 = name("Got it. Turn on Two-Step Verification").getOneNodeInfo(5000);
@@ -334,21 +349,16 @@ function 亚马逊账号设置OTP_设置二步验证(task) {
     throw new Error("没找到 [开启二步验证的按钮]");
   }
   开启二步验证的按钮.clickRandom();
-  sleep(随机区间(10000, 15000));
+  sleep(随机区间(8000, 12000));
+
   // TOTP开启成功的标志.png
-  var TOTP开启成功的标志 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='StaticText' and @index=0 and @label='Two-Step Verification (2SV) Settings']").getOneNodeInfo(5000);
+  日志收集器.添加("检测是否成功->二步验证设置");
+  var TOTP开启成功的标志 = name("1 app enrolled").getOneNodeInfo(5000);
   if (!TOTP开启成功的标志) {
     throw new Error("没找到 [TOTP开启成功的标志]");
   }
   运维接口.亚马逊账号标记TOTP成功(_phone);
-  日志收集器.添加("二步验证开启成功，现在回退到个人信息页面");
-  //回到个人信息页回退按钮.png
-  var 回到个人信息页回退按钮 = name("Your Account").getOneNodeInfo(5000);
-  if (!回到个人信息页回退按钮) {
-    throw new Error("没找到 [TOTP开启成功的标志]");
-  }
-  回到个人信息页回退按钮.clickRandom();
-  sleep(随机区间(8000, 10000));
+  日志收集器.添加("二步验证开始成功！！！");
 }
 
 function 亚马逊账号设置OTP_打开AMG并选择环境() {
@@ -374,7 +384,7 @@ function 亚马逊账号设置OTP_打开AMG并选择环境() {
       日志收集器.添加("AMG-点击一键新机");
       var 一键新机 = name("一键新机").getOneNodeInfo(5000);
       一键新机.clickCenter();
-      sleep(15000);
+      sleep(50000);
 
       return true;
 

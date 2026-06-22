@@ -32,6 +32,53 @@ var 运维接口 = {
   },
 
   /**
+   * 检查手机是否已联网：最多等待 60s，每 10s 探测一次，任意一次成功返回 true。
+   * 可通过 AMZ_CONFIG.networkCheckUrl 指定探测地址；不配置时默认访问 Google 连通性检测地址。
+   */
+  检查网络: function () {
+    var timeoutMs = 60000;
+    var intervalMs = 10000;
+    var requestTimeoutMs = 8000;
+    var url =
+      AMZ_CONFIG.networkCheckUrl != null && String(AMZ_CONFIG.networkCheckUrl).trim().length > 0
+        ? String(AMZ_CONFIG.networkCheckUrl).trim()
+        : "https://www.google.com/generate_204";
+    var start = Date.now();
+    var times = 0;
+
+    while (Date.now() - start < timeoutMs) {
+      times++;
+      var tryStart = Date.now();
+      try {
+        var res = http.httpGet(url, { t: String(Date.now()) }, requestTimeoutMs, null);
+        if (res != null) {
+          logd("检查网络成功 times=" + times);
+          return true;
+        }
+      } catch (e) {
+        logw("检查网络失败 times=" + times + " err=" + e);
+      }
+
+      var elapsed = Date.now() - start;
+      if (elapsed >= timeoutMs) {
+        break;
+      }
+      var used = Date.now() - tryStart;
+      var waitMs = intervalMs - used;
+      if (waitMs < 0) {
+        waitMs = 0;
+      }
+      if (elapsed + waitMs > timeoutMs) {
+        waitMs = timeoutMs - elapsed;
+      }
+      sleep(waitMs);
+    }
+
+    logw("检查网络超时，60s 内未联网");
+    return false;
+  },
+
+  /**
    * @param taskType 可选：search_click | related_click | similar_click | register
    * @return task 对象或 null
    */
