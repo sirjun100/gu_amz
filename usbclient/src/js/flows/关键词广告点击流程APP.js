@@ -9,7 +9,7 @@ function 关键词广告点击流程APP版本(task) {
   关键词广告点击APP版本_返回到HOME界面();
 
   日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
-  关键词广告点击APP版本_打开AMG并选择环境_下一条();
+  关键词广告点击APP版本_打开AMG并选择环境();
 
 
   日志收集器.添加("正在联网");
@@ -512,47 +512,48 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
 }
 
 function 关键词广告点击APP版本_打开AMG并选择环境() {
-  var 选择环境状态 = false;
-  var attempt = 0;
-  for (attempt = 0; attempt < 1; attempt++) {
-    logd("[关键词广告APP版本] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
-    var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
-    if (AMG应用图标按钮) {
-      clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
-      sleep(3000);
+    var 选择环境状态 = false;
+    var attempt = 0;
+    for (attempt = 0; attempt < 1; attempt++) {
+        logd("[生成新环境] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
+        var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
+        if (AMG应用图标按钮) {
+            clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
+            sleep(3000);
+            logd("判断当前页面");
+            var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
+            if(AMG){
+                logd("在环境列表页面");
+                AMG.clickCenter();
+                sleep(10000);
+            }else{
+                logd("在首页");
+            }
+            logd("AMG-点击一键新机");
+            var 一键新机 = name("一键新机").getOneNodeInfo(5000);
+            if(一键新机){
+                一键新机.clickCenter();
+            }else{
+                clickPoint(184,636);
+            }
+            sleep(50000);
 
-      日志收集器.添加("判断当前页面");
-      var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
-      if (AMG) {
-        日志收集器.添加("在环境列表页面");
-        AMG.clickCenter();
-        sleep(10000);
-      } else {
-        日志收集器.添加("在首页");
-      }
 
-      日志收集器.添加("AMG-点击一键新机");
-      var 一键新机 = name("一键新机").getOneNodeInfo(5000);
-      if (一键新机) {
-        一键新机.clickCenter();
-      } else {
-        clickPoint(184, 636);
-      }
 
-      sleep(15000);
-
-      return true;
-
+            return true;
+        }
+        if (选择环境状态) {
+            logd("[生成新环境] 步骤1 AMG 选环境成功");
+            break;
+        }
+        sleep(2000);
     }
-    if (选择环境状态) {
-      日志收集器.添加("[关键词广告APP版本] 步骤1 AMG 选环境成功");
-      break;
+    if(选择环境状态){
+        sleep(60000*2);
     }
-    sleep(2000);
-
-  }
-  return 选择环境状态;
+    return 选择环境状态;
 }
+
 
 function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
 
@@ -582,13 +583,7 @@ function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
   }
   下一条按钮.clickCenter();
   日志收集器.添加("成功点击下一条按钮。等待切换环境");
-<<<<<<< HEAD
   sleep(60000*2);
-=======
-  sleep(50000);
-
-
->>>>>>> 6dfa549413db92a3ca0bf4268b11c5a9b89ff6ee
 }
 
 function 关键词广告点击APP版本_登录亚马逊账号(task) {
