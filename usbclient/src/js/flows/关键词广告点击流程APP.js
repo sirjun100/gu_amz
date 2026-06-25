@@ -709,6 +709,14 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
     throw new Error("没找到 [个人中心页面，登录失败]");
   }
   日志收集器.添加("已跳转到个人中心页面，登录成功");
+  日志收集器.添加("点击首页按钮")
+  var 首页按钮 = name("Home").type("Button").getOneNodeInfo(5000);
+  if (!首页按钮) {
+    日志收集器.添加("没找到 [点击首页按钮]");
+    clickPoint(99, 1694);
+  }
+  首页按钮.clickCenter();
+  sleep(随机区间(3000, 5000));
   return true;
 }
 
