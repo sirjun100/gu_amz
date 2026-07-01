@@ -9,7 +9,7 @@ function 关键词广告点击流程APP版本(task) {
   关键词广告点击APP版本_返回到HOME界面();
 
   日志收集器.添加("[关键词广告APP版本] 步骤1/5 打开 AMG 并选择环境");
-  关键词广告点击APP版本_打开AMG并选择环境_下一条();
+  关键词广告点击APP版本_打开AMG并选择环境();
 
 
   日志收集器.添加("正在联网");
@@ -26,13 +26,13 @@ function 关键词广告点击流程APP版本(task) {
     throw new Error("步骤2 失败：打开 亚马逊APP");
   }
 
-  日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
-  关键词广告点击APP版本_登录亚马逊账号(task);
-
   日志收集器.添加("[关键词广告APP版本] 步骤3/5 关键词广告点击APP版本_打开亚马逊首页并随机浏览");
   if (!关键词广告点击APP版本_打开亚马逊首页并随机浏览()) {
     throw new Error("步骤3 失败：打开亚马逊首页或检测未通过");
   }
+
+  日志收集器.添加("[关键词广告APP版本] 步骤2/5 登录亚马逊账号");
+  关键词广告点击APP版本_登录亚马逊账号(task);
 
   日志收集器.添加("[关键词广告APP版本] 步骤4/5 随机关键词搜索浏览");
   if (!关键词广告点击APP版本_搜索随机关键词浏览并加购()) {
@@ -87,7 +87,7 @@ function 关键词广告点击APP版本_浏览详情页面(识别词, 关键词)
   向下滑一次();
   sleep(随机区间(3000, 5000))
   // 增加华东一次的意义在于： 之前点击了一次详情。可能一次滑过去的时候还会识别到。导致第二次又点击了，所以增加了一次滑动
-  向下滑一次();
+  向下滑一次_短();
   sleep(随机区间(3000, 5000))
 }
 
@@ -275,7 +275,6 @@ function 关键词广告点击APP版本_搜索并点击目标任务广告(task) 
           }
         }
       }
-      //releaseNode();
       向下滑一次_短();
     }
     sleep(随机区间(1500, 3000));
@@ -513,47 +512,48 @@ function 关键词广告点击APP版本_打开亚马逊首页并随机浏览() {
 }
 
 function 关键词广告点击APP版本_打开AMG并选择环境() {
-  var 选择环境状态 = false;
-  var attempt = 0;
-  for (attempt = 0; attempt < 1; attempt++) {
-    logd("[关键词广告APP版本] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
-    var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
-    if (AMG应用图标按钮) {
-      clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
-      sleep(3000);
+    var 选择环境状态 = false;
+    var attempt = 0;
+    for (attempt = 0; attempt < 1; attempt++) {
+        logd("[生成新环境] 步骤1 AMG 尝试 " + (attempt + 1) + "/3");
+        var AMG应用图标按钮 = 找图("amg/AMG应用图标.png");
+        if (AMG应用图标按钮) {
+            clickPoint(AMG应用图标按钮.x, AMG应用图标按钮.y);
+            sleep(3000);
+            logd("判断当前页面");
+            var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
+            if(AMG){
+                logd("在环境列表页面");
+                AMG.clickCenter();
+                sleep(10000);
+            }else{
+                logd("在首页");
+            }
+            logd("AMG-点击一键新机");
+            var 一键新机 = name("一键新机").getOneNodeInfo(5000);
+            if(一键新机){
+                一键新机.clickCenter();
+            }else{
+                clickPoint(184,636);
+            }
+            sleep(50000);
 
-      日志收集器.添加("判断当前页面");
-      var AMG = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='NavigationBar']/node[@type='Button' and @index=0 and @label='AMG']").getOneNodeInfo(5000);
-      if (AMG) {
-        日志收集器.添加("在环境列表页面");
-        AMG.clickCenter();
-        sleep(10000);
-      } else {
-        日志收集器.添加("在首页");
-      }
 
-      日志收集器.添加("AMG-点击一键新机");
-      var 一键新机 = name("一键新机").getOneNodeInfo(5000);
-      if (一键新机) {
-        一键新机.clickCenter();
-      } else {
-        clickPoint(184, 636);
-      }
 
-      sleep(15000);
-
-      return true;
-
+            return true;
+        }
+        if (选择环境状态) {
+            logd("[生成新环境] 步骤1 AMG 选环境成功");
+            break;
+        }
+        sleep(2000);
     }
-    if (选择环境状态) {
-      日志收集器.添加("[关键词广告APP版本] 步骤1 AMG 选环境成功");
-      break;
+    if(选择环境状态){
+        sleep(60000*2);
     }
-    sleep(2000);
-
-  }
-  return 选择环境状态;
+    return 选择环境状态;
 }
+
 
 function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
 
@@ -583,7 +583,7 @@ function 关键词广告点击APP版本_打开AMG并选择环境_下一条() {
   }
   下一条按钮.clickCenter();
   日志收集器.添加("成功点击下一条按钮。等待切换环境");
-  sleep(50000);
+  sleep(60000*2);
 }
 
 function 关键词广告点击APP版本_登录亚马逊账号(task) {
@@ -709,6 +709,14 @@ function 关键词广告点击APP版本_登录亚马逊账号(task) {
     throw new Error("没找到 [个人中心页面，登录失败]");
   }
   日志收集器.添加("已跳转到个人中心页面，登录成功");
+  日志收集器.添加("点击首页按钮")
+  var 首页按钮 = name("Home").type("Button").getOneNodeInfo(5000);
+  if (!首页按钮) {
+    日志收集器.添加("没找到 [点击首页按钮]");
+    clickPoint(99, 1694);
+  }
+  首页按钮.clickCenter();
+  sleep(随机区间(3000, 5000));
   return true;
 }
 
