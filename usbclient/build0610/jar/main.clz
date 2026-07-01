@@ -1,0 +1,16 @@
+com.js.api_运维接口
+com.js.core_EasyClick桥接
+com.js.core_简易步骤
+com.js.core_截图队列
+com.js.core_截图压缩
+com.js.core_日志收集器
+com.js.flows_SP竖版广告双关键词_3分钟版本
+com.js.flows_关键词广告点击流程
+com.js.flows_关键词广告点击流程APP
+com.js.flows_生成新环境
+com.js.flows_亚马逊账户获取OTP
+com.js.flows_亚马逊账户注册
+com.js.main
+com.js.utils_随机工具
+com.js.配置
+com.js.任务主循环

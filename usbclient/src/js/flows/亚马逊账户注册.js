@@ -57,6 +57,7 @@ function 亚马逊账户注册(task) {
     if (!亚马逊账户注册_返回到HOME界面()) {
       throw new Error("步骤1 后失败：无法返回主屏幕");
     }
+    sleep(60000);
     日志收集器.添加("[注册亚马逊] 步骤2/5 打开 亚马逊APP");``
     if (!亚马逊账户注册_打开亚马逊APP()) {
       throw new Error("步骤2 失败：打开 亚马逊APP");
@@ -234,6 +235,27 @@ function 亚马逊账户注册_设置二步验证(task) {
   开启二步验证按钮.clickCenter()
   sleep(随机区间(10000, 15000));
 
+  日志收集器.添加("检测提交验证码-再次手机验证");
+  var 手机验证码输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=0]").getOneNodeInfo(5000);
+  if(手机验证码输入框){
+    日志收集器.添加("获取验证码->"+手机接码网址);
+    var 验证码 = AMZ_轮询接码链接取验证码(手机接码网址, 120);
+    if (!验证码 || String(验证码).length !== 6) {
+      日志收集器.添加("[注册亚马逊-亚马逊账户注册_开始注册] 手机短信超时或无效");
+      throw new Error("手机短信验证码超时或无效");
+    }
+
+    手机验证码输入框.clickRandom();
+    sleep(随机区间(1000, 3000));
+    逐字输入(验证码);
+    sleep(随机区间(1000, 3000));
+
+    日志收集器.添加("验证码->"+验证码);
+    var 提交验证码按钮 = name("Submit code").getOneNodeInfo(5000);
+    提交验证码按钮.clickRandom();
+    sleep(随机区间(8000, 14000));
+  }
+
 
   日志收集器.添加("可能跳继续按钮，检测一下，检测到就点击");
   var 继续按钮 = xpath('//node[@type=\'Application\']/node[@type=\'Window\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'WebView\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Other\']/node[@type=\'Button\' and @index=5 and @label=\'Continue\']').getOneNodeInfo(5000);
@@ -355,7 +377,8 @@ function 亚马逊账户注册_设置二步验证(task) {
   开启二步验证的按钮.clickRandom();
   sleep(随机区间(10000, 15000));
   // TOTP开启成功的标志.png
-  var TOTP开启成功的标志 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='StaticText' and @index=0 and @label='Two-Step Verification (2SV) Settings']").getOneNodeInfo(5000);
+  日志收集器.添加("检测是否成功->二步验证设置");
+  var TOTP开启成功的标志 = name("1 app enrolled").getOneNodeInfo(5000);
   if (!TOTP开启成功的标志) {
     throw new Error("没找到 [TOTP开启成功的标志]");
   }
@@ -396,6 +419,8 @@ function 亚马逊账户注册_开始注册(task) {
       (p.email_pool_id != null ? p.email_pool_id : "-")
   );
 
+  sleep(60000);
+
   日志收集器.添加("点击【菜单栏目个人中心图标】")
   var 菜单栏目个人中心图标 = 找图("菜单栏目个人中心图标.png");
   if (!菜单栏目个人中心图标) {
@@ -415,7 +440,7 @@ function 亚马逊账户注册_开始注册(task) {
   }else{
     clickPoint(个人中心注册按钮.x, 个人中心注册按钮.y);
   }
-  sleep(随机区间(15000, 20000));
+  sleep(随机区间(50000, 80000));
 
   日志收集器.添加("开始收入手机号="+手机号码)
   var 注册页面识别输入框 = xpath("//node[@type='Application']/node[@type='Window']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='WebView']/node[@type='WebView']/node[@type='WebView']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='Other']/node[@type='TextField' and @index=2 and @label='Enter mobile number or email']").getOneNodeInfo(5000);
