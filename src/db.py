@@ -33,20 +33,27 @@ except ZoneInfoNotFoundError as e:
 
 DEFAULT_TASK_SCRIPT_DESCRIPTIONS: dict[str, str] = {
     "search_click_app": (
-        "全广告品牌黑名单：在亚马逊 APP 中模拟真实用户完整动线。"
-        "打开 AMG 环境管理并选择环境，检测手机联网后打开亚马逊 APP，"
-        "登录账号，随机关键词搜索浏览并加购，最后按识别词（品牌）、搜索词与价格匹配点击广告商品，"
+        "【全广告品牌黑名单】在亚马逊 APP 模拟真实用户完整动线（北京时间按后台时段执行）。"
+        "主要步骤：① 打开 AMG 选择环境；② 检测手机联网；③ 打开亚马逊 APP 并浏览首页；"
+        "④ 登录账号；⑤ 随机关键词搜索浏览并加购；⑥ 按识别词（品牌）、搜索词与价格匹配点击广告商品，"
         "进入详情页上下滑动浏览约 3 分钟后上报点击记录。"
-        "全流程约 5 大步骤，单次任务通常需十余分钟。"
+        "共 5 大步骤（含联网检测），单次任务通常需十余分钟。"
     ),
     "SP常规广告品牌黑名单": (
-        "SP 常规广告品牌黑名单：在亚马逊 APP 中执行 SP 常规广告点击流程（无联网检测步骤）。"
-        "打开 AMG 环境、启动亚马逊 APP 并随机浏览首页，登录账号后随机关键词浏览加购，"
-        "再按识别词（品牌）、搜索词与价格定位并点击 SP 常规广告，"
+        "【SP 常规广告品牌黑名单】在亚马逊 APP 执行 SP 常规广告点击（无联网检测，按后台时段执行）。"
+        "主要步骤：① 打开 AMG 选择环境；② 打开亚马逊 APP 并随机浏览首页；③ 登录账号；"
+        "④ 随机关键词搜索浏览并加购；⑤ 按识别词（品牌）、搜索词与价格定位并点击 SP 常规广告，"
         "详情页浏览约 3 分钟后上报点击。"
-        "全流程约 5 步，单次任务通常需十余分钟。"
+        "共 5 步，单次任务通常需十余分钟。"
     ),
 }
+
+AUTO_SCHEDULE_MODE = "auto"
+CUSTOM_SCHEDULE_MODE = "custom"
+AUTO_SCHEDULE_START_HOUR = 22
+AUTO_SCHEDULE_START_MINUTE = 0
+AUTO_SCHEDULE_END_HOUR = 8
+AUTO_SCHEDULE_END_MINUTE = 0
 
 
 def ny_today_date() -> date:
@@ -318,6 +325,14 @@ class Database:
         self._migrate_app_ad_click_records()
         self._migrate_app_identify_pools()
         self._migrate_task_script_schedules()
+        self._migrate_task_script_schedules_daily_mode()
+        self._migrate_task_script_schedules_compatible()
+        self._migrate_task_script_schedules_default_window()
+        self._migrate_task_script_schedules_exclusive()
+        self._migrate_task_script_schedules_custom_only()
+        self._migrate_task_script_schedules_fixup_legacy_full_day()
+        self._migrate_task_script_schedules_enabled_flag()
+        self._migrate_task_script_schedules_sync_enabled_flag()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
 
@@ -425,10 +440,398 @@ class Database:
                         start_year, start_month, start_day, start_hour, start_minute,
                         end_year, end_month, end_day, end_hour, end_minute,
                         description
-                    ) VALUES (%s, 2020, 1, 1, 0, 0, 2099, 12, 31, 23, 59, %s)
+                    ) VALUES (%s, 2020, 1, 1, %s, %s, 2099, 12, 31, %s, %s, %s)
                     """,
-                    (tt, DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(tt, "")),
+                    (
+                        tt,
+                        0,
+                        0,
+                        0,
+                        0,
+                        DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(tt, ""),
+                    ),
                 )
+
+    def _migrate_task_script_schedules_daily_mode(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            if "schedule_mode" not in cols:
+                cur.execute(
+                    """
+                    ALTER TABLE task_script_schedules
+                    ADD COLUMN schedule_mode VARCHAR(16) NOT NULL DEFAULT 'auto' AFTER task_type
+                    """
+                )
+            cur.execute("SELECT * FROM task_script_schedules")
+            for row in cur.fetchall():
+                tt = row.get("task_type")
+                if not tt:
+                    continue
+                sy = int(row.get("start_year") or 0)
+                ey = int(row.get("end_year") or 0)
+                mode = (row.get("schedule_mode") or "").strip().lower()
+                if mode not in (AUTO_SCHEDULE_MODE, CUSTOM_SCHEDULE_MODE):
+                    if sy <= 2020 and ey >= 2099:
+                        mode = AUTO_SCHEDULE_MODE
+                    else:
+                        mode = CUSTOM_SCHEDULE_MODE
+                    cur.execute(
+                        "UPDATE task_script_schedules SET schedule_mode = %s WHERE task_type = %s",
+                        (mode, tt),
+                    )
+
+    def _migrate_task_script_schedules_compatible(self):
+        """自动运行时段与自定义时段并存，取并集判断是否在窗口内。"""
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if not cols:
+                return
+            needs_data_migration = "auto_start_hour" not in cols
+            alters: list[str] = []
+            if "auto_enabled" not in cols:
+                alters.append("ADD COLUMN auto_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER schedule_mode")
+            if "auto_start_hour" not in cols:
+                alters.append(
+                    f"ADD COLUMN auto_start_hour INT NOT NULL DEFAULT {AUTO_SCHEDULE_START_HOUR} AFTER auto_enabled"
+                )
+            if "auto_start_minute" not in cols:
+                alters.append(
+                    f"ADD COLUMN auto_start_minute INT NOT NULL DEFAULT {AUTO_SCHEDULE_START_MINUTE} AFTER auto_start_hour"
+                )
+            if "auto_end_hour" not in cols:
+                alters.append(
+                    f"ADD COLUMN auto_end_hour INT NOT NULL DEFAULT {AUTO_SCHEDULE_END_HOUR} AFTER auto_start_minute"
+                )
+            if "auto_end_minute" not in cols:
+                alters.append(
+                    f"ADD COLUMN auto_end_minute INT NOT NULL DEFAULT {AUTO_SCHEDULE_END_MINUTE} AFTER auto_end_hour"
+                )
+            if "custom_enabled" not in cols:
+                alters.append("ADD COLUMN custom_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER auto_end_minute")
+            if "custom_start_hour" not in cols:
+                alters.append("ADD COLUMN custom_start_hour INT NOT NULL DEFAULT 0 AFTER custom_enabled")
+            if "custom_start_minute" not in cols:
+                alters.append("ADD COLUMN custom_start_minute INT NOT NULL DEFAULT 0 AFTER custom_start_hour")
+            if "custom_end_hour" not in cols:
+                alters.append("ADD COLUMN custom_end_hour INT NOT NULL DEFAULT 23 AFTER custom_start_minute")
+            if "custom_end_minute" not in cols:
+                alters.append("ADD COLUMN custom_end_minute INT NOT NULL DEFAULT 59 AFTER custom_end_hour")
+            for stmt in alters:
+                cur.execute(f"ALTER TABLE task_script_schedules {stmt}")
+
+            if not needs_data_migration:
+                return
+
+            cur.execute("SELECT * FROM task_script_schedules")
+            for row in cur.fetchall():
+                tt = row.get("task_type")
+                if not tt:
+                    continue
+                mode = (row.get("schedule_mode") or AUTO_SCHEDULE_MODE).strip().lower()
+                sh = int(row.get("start_hour") or AUTO_SCHEDULE_START_HOUR)
+                sm = int(row.get("start_minute") or AUTO_SCHEDULE_START_MINUTE)
+                eh = int(row.get("end_hour") or AUTO_SCHEDULE_END_HOUR)
+                em = int(row.get("end_minute") or AUTO_SCHEDULE_END_MINUTE)
+                if mode == CUSTOM_SCHEDULE_MODE:
+                    auto_enabled = 1
+                    custom_enabled = 1
+                    auto_sh, auto_sm, auto_eh, auto_em = (
+                        AUTO_SCHEDULE_START_HOUR,
+                        AUTO_SCHEDULE_START_MINUTE,
+                        AUTO_SCHEDULE_END_HOUR,
+                        AUTO_SCHEDULE_END_MINUTE,
+                    )
+                    custom_sh, custom_sm, custom_eh, custom_em = sh, sm, eh, em
+                else:
+                    auto_enabled = 1
+                    custom_enabled = 0
+                    auto_sh, auto_sm, auto_eh, auto_em = sh, sm, eh, em
+                    custom_sh, custom_sm, custom_eh, custom_em = sh, sm, eh, em
+                cur.execute(
+                    """
+                    UPDATE task_script_schedules SET
+                        auto_enabled = %s,
+                        auto_start_hour = %s, auto_start_minute = %s,
+                        auto_end_hour = %s, auto_end_minute = %s,
+                        custom_enabled = %s,
+                        custom_start_hour = %s, custom_start_minute = %s,
+                        custom_end_hour = %s, custom_end_minute = %s
+                    WHERE task_type = %s
+                    """,
+                    (
+                        auto_enabled,
+                        auto_sh,
+                        auto_sm,
+                        auto_eh,
+                        auto_em,
+                        custom_enabled,
+                        custom_sh,
+                        custom_sm,
+                        custom_eh,
+                        custom_em,
+                        tt,
+                    ),
+                )
+
+    def _migrate_task_script_schedules_default_window(self):
+        """将仍为旧默认（00:00-23:59）的自动运行时段更新为 22:00-08:00。"""
+        marker = "task_script_schedules_default_v22"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if "auto_start_hour" not in cols:
+                return
+            cur.execute(
+                """
+                UPDATE task_script_schedules SET
+                    auto_start_hour = %s,
+                    auto_start_minute = %s,
+                    auto_end_hour = %s,
+                    auto_end_minute = %s
+                WHERE auto_start_hour = 0 AND auto_start_minute = 0
+                  AND auto_end_hour = 23 AND auto_end_minute = 59
+                """,
+                (
+                    AUTO_SCHEDULE_START_HOUR,
+                    AUTO_SCHEDULE_START_MINUTE,
+                    AUTO_SCHEDULE_END_HOUR,
+                    AUTO_SCHEDULE_END_MINUTE,
+                ),
+            )
+        self.set_app_setting(marker, "1")
+
+    def _migrate_task_script_schedules_exclusive(self):
+        """默认时段与自定义时段互斥：启用自定义时关闭自动。"""
+        marker = "task_script_schedules_exclusive_v1"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if "custom_enabled" not in cols:
+                return
+            cur.execute(
+                """
+                UPDATE task_script_schedules
+                SET auto_enabled = 0
+                WHERE custom_enabled = 1 AND auto_enabled = 1
+                """
+            )
+            cur.execute(
+                """
+                UPDATE task_script_schedules
+                SET auto_enabled = 1, custom_enabled = 0
+                WHERE custom_enabled = 0 AND auto_enabled = 0
+                """
+            )
+        self.set_app_setting(marker, "1")
+
+    def _migrate_task_script_schedules_custom_only(self):
+        """统一为自定义时段；原默认模式的时间写入 custom 字段。"""
+        marker = "task_script_schedules_custom_only_v1"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if "custom_enabled" not in cols:
+                return
+            cur.execute("SELECT * FROM task_script_schedules")
+            for row in cur.fetchall():
+                tt = row.get("task_type")
+                if not tt:
+                    continue
+                if self._as_bool_flag(row.get("custom_enabled")):
+                    sh = int(row.get("custom_start_hour", AUTO_SCHEDULE_START_HOUR))
+                    sm = int(row.get("custom_start_minute", AUTO_SCHEDULE_START_MINUTE))
+                    eh = int(row.get("custom_end_hour", AUTO_SCHEDULE_END_HOUR))
+                    em = int(row.get("custom_end_minute", AUTO_SCHEDULE_END_MINUTE))
+                else:
+                    sh = int(row.get("auto_start_hour", AUTO_SCHEDULE_START_HOUR))
+                    sm = int(row.get("auto_start_minute", AUTO_SCHEDULE_START_MINUTE))
+                    eh = int(row.get("auto_end_hour", AUTO_SCHEDULE_END_HOUR))
+                    em = int(row.get("auto_end_minute", AUTO_SCHEDULE_END_MINUTE))
+                cur.execute(
+                    """
+                    UPDATE task_script_schedules SET
+                        custom_enabled = 1,
+                        auto_enabled = 0,
+                        custom_start_hour = %s,
+                        custom_start_minute = %s,
+                        custom_end_hour = %s,
+                        custom_end_minute = %s,
+                        start_hour = %s,
+                        start_minute = %s,
+                        end_hour = %s,
+                        end_minute = %s
+                    WHERE task_type = %s
+                    """,
+                    (sh, sm, eh, em, sh, sm, eh, em, tt),
+                )
+        self.set_app_setting(marker, "1")
+
+    def _migrate_task_script_schedules_fixup_legacy_full_day(self):
+        """将遗留的全天占位时段 00:00-23:59 统一修正为默认 22:00-08:00。"""
+        marker = "task_script_schedules_legacy_full_day_v1"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            if not cur.fetchone():
+                return
+            fix = (
+                AUTO_SCHEDULE_START_HOUR,
+                AUTO_SCHEDULE_START_MINUTE,
+                AUTO_SCHEDULE_END_HOUR,
+                AUTO_SCHEDULE_END_MINUTE,
+            )
+            legacy_where = """
+                (start_hour = 0 AND start_minute = 0 AND end_hour = 23 AND end_minute = 59)
+                OR (custom_start_hour = 0 AND custom_start_minute = 0
+                    AND custom_end_hour = 23 AND custom_end_minute = 59)
+                OR (auto_start_hour = 0 AND auto_start_minute = 0
+                    AND auto_end_hour = 23 AND auto_end_minute = 59)
+            """
+            cur.execute(
+                f"""
+                UPDATE task_script_schedules SET
+                    schedule_mode = 'custom',
+                    custom_enabled = 1,
+                    auto_enabled = 0,
+                    start_hour = %s,
+                    start_minute = %s,
+                    end_hour = %s,
+                    end_minute = %s,
+                    custom_start_hour = %s,
+                    custom_start_minute = %s,
+                    custom_end_hour = %s,
+                    custom_end_minute = %s,
+                    auto_start_hour = %s,
+                    auto_start_minute = %s,
+                    auto_end_hour = %s,
+                    auto_end_minute = %s
+                WHERE {legacy_where}
+                """,
+                fix * 3,
+            )
+        self.set_app_setting(marker, "1")
+
+    def _migrate_task_script_schedules_enabled_flag(self):
+        """未显式保存时段时不再套用默认 22:00-08:00，由 schedule_enabled 控制是否限制。"""
+        marker = "task_script_schedules_enabled_v1"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            if not cur.fetchone():
+                return
+            cur.execute(
+                """
+                SELECT COLUMN_NAME AS n FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'task_script_schedules'
+                """
+            )
+            cols = {r["n"] for r in cur.fetchall()}
+            if "schedule_enabled" not in cols:
+                cur.execute(
+                    """
+                    ALTER TABLE task_script_schedules
+                    ADD COLUMN schedule_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER schedule_mode
+                    """
+                )
+            placeholder = """
+                (start_hour = 0 AND start_minute = 0 AND end_hour = 0 AND end_minute = 0)
+                OR (start_hour = 0 AND start_minute = 0 AND end_hour = 23 AND end_minute = 59)
+                OR (start_hour = 22 AND start_minute = 0 AND end_hour = 8 AND end_minute = 0)
+                OR (custom_start_hour = 0 AND custom_start_minute = 0
+                    AND custom_end_hour = 0 AND custom_end_minute = 0)
+                OR (custom_start_hour = 0 AND custom_start_minute = 0
+                    AND custom_end_hour = 23 AND custom_end_minute = 59)
+                OR (custom_start_hour = 22 AND custom_start_minute = 0
+                    AND custom_end_hour = 8 AND custom_end_minute = 0)
+            """
+            cur.execute(
+                f"""
+                UPDATE task_script_schedules SET schedule_enabled = 0
+                WHERE {placeholder}
+                """
+            )
+            cur.execute(
+                f"""
+                UPDATE task_script_schedules SET schedule_enabled = 1
+                WHERE NOT ({placeholder})
+                """
+            )
+        self.set_app_setting(marker, "1")
+
+    def _migrate_task_script_schedules_sync_enabled_flag(self):
+        """已写入 custom 时段但 schedule_enabled 仍为 0 时同步为 1。"""
+        marker = "task_script_schedules_sync_enabled_v1"
+        if self.get_app_setting(marker):
+            return
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT 1 FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'task_script_schedules'
+                  AND COLUMN_NAME = 'schedule_enabled'
+                """
+            )
+            if not cur.fetchone():
+                return
+            cur.execute(
+                """
+                UPDATE task_script_schedules
+                SET schedule_enabled = 1
+                WHERE schedule_enabled = 0
+                  AND custom_enabled = 1
+                  AND NOT (custom_start_hour = 0 AND custom_start_minute = 0
+                           AND custom_end_hour = 0 AND custom_end_minute = 0)
+                """
+            )
+        self.set_app_setting(marker, "1")
 
     def _migrate_register_code_pools(self):
         with self._cursor() as (conn, cur):
@@ -697,73 +1100,185 @@ class Database:
         self.set_app_setting("task_retention_days", str(d))
 
     @staticmethod
-    def _schedule_part(row: dict, prefix: str) -> datetime:
-        return datetime(
-            int(row[f"{prefix}_year"]),
-            int(row[f"{prefix}_month"]),
-            int(row[f"{prefix}_day"]),
-            int(row[f"{prefix}_hour"]),
-            int(row[f"{prefix}_minute"]),
-            tzinfo=BJ_TZ,
-        )
+    def _minutes_of_day(hour: int, minute: int) -> int:
+        return int(hour) * 60 + int(minute)
+
+    @classmethod
+    def _is_in_daily_time_window(
+        cls,
+        hour: int,
+        minute: int,
+        start_hour: int,
+        start_minute: int,
+        end_hour: int,
+        end_minute: int,
+    ) -> bool:
+        now_m = cls._minutes_of_day(hour, minute)
+        start_m = cls._minutes_of_day(start_hour, start_minute)
+        end_m = cls._minutes_of_day(end_hour, end_minute)
+        if start_m <= end_m:
+            return start_m <= now_m <= end_m
+        return now_m >= start_m or now_m <= end_m
 
     @staticmethod
-    def _format_bj_schedule_display(dt: datetime) -> str:
-        return dt.strftime("%Y年%m月%d日 %H:%M")
+    def _format_daily_time_display(hour: int, minute: int) -> str:
+        return f"{int(hour):02d}:{int(minute):02d}"
 
-    @staticmethod
-    def _format_schedule_duration(start: datetime, end: datetime) -> str:
-        delta = end - start
-        if delta.total_seconds() < 0:
-            return "无效（结束早于开始）"
-        total_minutes = int(delta.total_seconds() // 60)
-        days, rem = divmod(total_minutes, 60 * 24)
-        hours, minutes = divmod(rem, 60)
+    @classmethod
+    def _format_daily_duration_display(
+        cls,
+        start_hour: int,
+        start_minute: int,
+        end_hour: int,
+        end_minute: int,
+    ) -> str:
+        start_m = cls._minutes_of_day(start_hour, start_minute)
+        end_m = cls._minutes_of_day(end_hour, end_minute)
+        if start_m <= end_m:
+            total = end_m - start_m
+        else:
+            total = 24 * 60 - start_m + end_m
+        hours, minutes = divmod(total, 60)
         parts: list[str] = []
-        if days:
-            parts.append(f"{days}天")
         if hours:
             parts.append(f"{hours}小时")
         if minutes or not parts:
             parts.append(f"{minutes}分钟")
         return "".join(parts)
 
-    def serialize_task_script_schedule(self, row: dict | None, task_type: str) -> dict:
+    @staticmethod
+    def _as_bool_flag(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        try:
+            return int(value or 0) != 0
+        except (TypeError, ValueError):
+            return bool(value)
+
+    @staticmethod
+    def _row_schedule_enabled(row: dict | None) -> bool:
         if row is None:
-            row = {
+            return False
+        if Database._as_bool_flag(row.get("schedule_enabled")):
+            return True
+        if not Database._as_bool_flag(row.get("custom_enabled")):
+            return False
+        sh = int(row.get("custom_start_hour", row.get("start_hour", -1)))
+        eh = int(row.get("custom_end_hour", row.get("end_hour", -1)))
+        return 0 <= sh <= 23 and 0 <= eh <= 23 and not (sh == 0 and eh == 0)
+
+    def _schedule_times_from_row(self, row: dict) -> tuple[int, int, int, int]:
+        if self._as_bool_flag(row.get("custom_enabled")):
+            sh = int(row.get("custom_start_hour", row.get("start_hour", 0)))
+            sm = int(row.get("custom_start_minute", row.get("start_minute", 0)))
+            eh = int(row.get("custom_end_hour", row.get("end_hour", 0)))
+            em = int(row.get("custom_end_minute", row.get("end_minute", 0)))
+        else:
+            sh = int(row.get("auto_start_hour", row.get("start_hour", 0)))
+            sm = int(row.get("auto_start_minute", row.get("start_minute", 0)))
+            eh = int(row.get("auto_end_hour", row.get("end_hour", 0)))
+            em = int(row.get("auto_end_minute", row.get("end_minute", 0)))
+        return sh, sm, eh, em
+
+    def _window_dict(
+        self,
+        label: str,
+        start_hour: int,
+        start_minute: int,
+        end_hour: int,
+        end_minute: int,
+    ) -> dict:
+        cross_day = self._minutes_of_day(start_hour, start_minute) > self._minutes_of_day(end_hour, end_minute)
+        start_disp = self._format_daily_time_display(start_hour, start_minute)
+        end_disp = self._format_daily_time_display(end_hour, end_minute)
+        return {
+            "label": label,
+            "start_hour": int(start_hour),
+            "start_minute": int(start_minute),
+            "end_hour": int(end_hour),
+            "end_minute": int(end_minute),
+            "start_display": f"每天 {start_disp}",
+            "end_display": f"每天 {end_disp}{'（次日）' if cross_day else ''}",
+            "duration_display": self._format_daily_duration_display(
+                start_hour, start_minute, end_hour, end_minute
+            ),
+            "cross_day": cross_day,
+        }
+
+    def _parse_schedule_row(self, row: dict | None, task_type: str) -> dict:
+        enabled = self._row_schedule_enabled(row)
+        desc = (row.get("description") if row else None) or DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(task_type, "")
+        if not enabled or row is None:
+            return {
                 "task_type": task_type,
-                "start_year": 2020,
-                "start_month": 1,
-                "start_day": 1,
-                "start_hour": 0,
-                "start_minute": 0,
-                "end_year": 2099,
-                "end_month": 12,
-                "end_day": 31,
-                "end_hour": 23,
-                "end_minute": 59,
-                "description": DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(task_type, ""),
+                "schedule_enabled": False,
+                "start_hour": None,
+                "start_minute": None,
+                "end_hour": None,
+                "end_minute": None,
+                "description": desc,
             }
-        start = self._schedule_part(row, "start")
-        end = self._schedule_part(row, "end")
-        now = datetime.now(BJ_TZ)
+        sh, sm, eh, em = self._schedule_times_from_row(row)
         return {
             "task_type": task_type,
-            "start_year": int(row["start_year"]),
-            "start_month": int(row["start_month"]),
-            "start_day": int(row["start_day"]),
-            "start_hour": int(row["start_hour"]),
-            "start_minute": int(row["start_minute"]),
-            "end_year": int(row["end_year"]),
-            "end_month": int(row["end_month"]),
-            "end_day": int(row["end_day"]),
-            "end_hour": int(row["end_hour"]),
-            "end_minute": int(row["end_minute"]),
-            "description": row.get("description") or "",
-            "in_window": start <= now <= end,
-            "start_display": self._format_bj_schedule_display(start),
-            "end_display": self._format_bj_schedule_display(end),
-            "duration_display": self._format_schedule_duration(start, end),
+            "schedule_enabled": True,
+            "start_hour": sh,
+            "start_minute": sm,
+            "end_hour": eh,
+            "end_minute": em,
+            "description": desc,
+        }
+
+    def _is_in_active_daily_window(self, hour: int, minute: int, cfg: dict) -> bool:
+        return self._is_in_daily_time_window(
+            hour,
+            minute,
+            cfg["start_hour"],
+            cfg["start_minute"],
+            cfg["end_hour"],
+            cfg["end_minute"],
+        )
+
+    def serialize_task_script_schedule(self, row: dict | None, task_type: str) -> dict:
+        cfg = self._parse_schedule_row(row, task_type)
+        if not cfg.get("schedule_enabled"):
+            return {
+                "task_type": task_type,
+                "schedule_enabled": False,
+                "start_hour": None,
+                "start_minute": None,
+                "end_hour": None,
+                "end_minute": None,
+                "description": cfg["description"],
+                "in_window": True,
+                "run_mode_display": "未设置（全天可执行）",
+                "windows": [],
+                "timezone": "Asia/Shanghai",
+            }
+        now = datetime.now(BJ_TZ)
+        in_window = self._is_in_active_daily_window(
+            now.hour, now.minute, cfg
+        )
+        windows = [
+            self._window_dict(
+                "运行时段",
+                cfg["start_hour"],
+                cfg["start_minute"],
+                cfg["end_hour"],
+                cfg["end_minute"],
+            )
+        ]
+        return {
+            "task_type": task_type,
+            "schedule_enabled": True,
+            "start_hour": cfg["start_hour"],
+            "start_minute": cfg["start_minute"],
+            "end_hour": cfg["end_hour"],
+            "end_minute": cfg["end_minute"],
+            "description": cfg["description"],
+            "in_window": in_window,
+            "run_mode_display": "自定义每日时段",
+            "windows": windows,
             "timezone": "Asia/Shanghai",
         }
 
@@ -788,14 +1303,8 @@ class Database:
         self,
         task_type: str,
         *,
-        start_year: int,
-        start_month: int,
-        start_day: int,
         start_hour: int,
         start_minute: int,
-        end_year: int,
-        end_month: int,
-        end_day: int,
         end_hour: int,
         end_minute: int,
         description: str,
@@ -803,10 +1312,16 @@ class Database:
         tt = (task_type or "").strip()
         if tt not in APP_CLICK_TASK_TYPES:
             raise ValueError("invalid task_type")
-        start = datetime(start_year, start_month, start_day, start_hour, start_minute, tzinfo=BJ_TZ)
-        end = datetime(end_year, end_month, end_day, end_hour, end_minute, tzinfo=BJ_TZ)
-        if end < start:
-            raise ValueError("结束时间不能早于开始时间")
+        start_hour = int(start_hour)
+        start_minute = int(start_minute)
+        end_hour = int(end_hour)
+        end_minute = int(end_minute)
+        if not (0 <= start_hour <= 23 and 0 <= start_minute <= 59):
+            raise ValueError("开始时间无效")
+        if not (0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+            raise ValueError("结束时间无效")
+        if start_hour == end_hour and start_minute == end_minute:
+            raise ValueError("开始与结束时间不能相同")
         desc = (description or "").strip()
         if not desc:
             desc = DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(tt, "")
@@ -814,34 +1329,65 @@ class Database:
             cur.execute(
                 """
                 INSERT INTO task_script_schedules (
-                    task_type,
+                    task_type, schedule_mode, schedule_enabled,
                     start_year, start_month, start_day, start_hour, start_minute,
                     end_year, end_month, end_day, end_hour, end_minute,
+                    auto_enabled,
+                    auto_start_hour, auto_start_minute, auto_end_hour, auto_end_minute,
+                    custom_enabled,
+                    custom_start_hour, custom_start_minute, custom_end_hour, custom_end_minute,
                     description
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (
+                    %s, 'custom', 1,
+                    1970, 1, 1, %s, %s, 1970, 1, 1, %s, %s,
+                    0, %s, %s, %s, %s,
+                    1, %s, %s, %s, %s,
+                    %s
+                )
                 ON DUPLICATE KEY UPDATE
-                    start_year = VALUES(start_year),
-                    start_month = VALUES(start_month),
-                    start_day = VALUES(start_day),
-                    start_hour = VALUES(start_hour),
-                    start_minute = VALUES(start_minute),
-                    end_year = VALUES(end_year),
-                    end_month = VALUES(end_month),
-                    end_day = VALUES(end_day),
-                    end_hour = VALUES(end_hour),
-                    end_minute = VALUES(end_minute),
-                    description = VALUES(description)
+                    schedule_mode = 'custom',
+                    schedule_enabled = 1,
+                    start_hour = %s,
+                    start_minute = %s,
+                    end_hour = %s,
+                    end_minute = %s,
+                    auto_enabled = 0,
+                    auto_start_hour = %s,
+                    auto_start_minute = %s,
+                    auto_end_hour = %s,
+                    auto_end_minute = %s,
+                    custom_enabled = 1,
+                    custom_start_hour = %s,
+                    custom_start_minute = %s,
+                    custom_end_hour = %s,
+                    custom_end_minute = %s,
+                    description = %s
                 """,
                 (
                     tt,
-                    start_year,
-                    start_month,
-                    start_day,
                     start_hour,
                     start_minute,
-                    end_year,
-                    end_month,
-                    end_day,
+                    end_hour,
+                    end_minute,
+                    start_hour,
+                    start_minute,
+                    end_hour,
+                    end_minute,
+                    start_hour,
+                    start_minute,
+                    end_hour,
+                    end_minute,
+                    desc,
+                    start_hour,
+                    start_minute,
+                    end_hour,
+                    end_minute,
+                    start_hour,
+                    start_minute,
+                    end_hour,
+                    end_minute,
+                    start_hour,
+                    start_minute,
                     end_hour,
                     end_minute,
                     desc,
@@ -854,12 +1400,11 @@ class Database:
         if tt not in APP_CLICK_TASK_TYPES:
             return True
         row = self.get_task_script_schedule_row(tt)
-        if row is None:
+        if row is None or not self._row_schedule_enabled(row):
             return True
+        cfg = self._parse_schedule_row(row, tt)
         now = datetime.now(BJ_TZ)
-        start = self._schedule_part(row, "start")
-        end = self._schedule_part(row, "end")
-        return start <= now <= end
+        return self._is_in_active_daily_window(now.hour, now.minute, cfg)
 
     def get_blocked_app_click_task_types(self) -> list[str]:
         blocked: list[str] = []
@@ -2993,7 +3538,7 @@ class Database:
                     return None
                 cur.execute(
                     """
-                    SELECT id FROM tasks
+                    SELECT id, task_type FROM tasks
                     WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s) AND task_type = %s
                     ORDER BY id ASC
                     LIMIT 1
@@ -3006,7 +3551,7 @@ class Database:
                     placeholders = ",".join(["%s"] * len(blocked))
                     cur.execute(
                         f"""
-                        SELECT id FROM tasks
+                        SELECT id, task_type FROM tasks
                         WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
                           AND task_type NOT IN ({placeholders})
                         ORDER BY id ASC
@@ -3018,7 +3563,7 @@ class Database:
                 else:
                     cur.execute(
                         """
-                        SELECT id FROM tasks
+                        SELECT id, task_type FROM tasks
                         WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
                         ORDER BY id ASC
                         LIMIT 1
@@ -3029,7 +3574,10 @@ class Database:
             row = cur.fetchone()
             if not row:
                 return None
-            tid = row["id"]
+            tid = int(row["id"])
+            claimed_tt = str(row.get("task_type") or "")
+            if not self.is_task_type_in_schedule_window(claimed_tt):
+                return None
             cur.execute(
                 """
                 UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP, device_id = COALESCE(device_id, %s)
@@ -3040,17 +3588,7 @@ class Database:
             if cur.rowcount == 0:
                 return None
             cur.execute("SELECT * FROM tasks WHERE id = %s", (tid,))
-            task = cur.fetchone()
-            if task and not self.is_task_type_in_schedule_window(str(task.get("task_type") or "")):
-                cur.execute(
-                    """
-                    UPDATE tasks SET status = 'pending', started_at = NULL
-                    WHERE id = %s AND status = 'running'
-                    """,
-                    (tid,),
-                )
-                return None
-            return task
+            return cur.fetchone()
 
     def append_task_logs(self, task_id: int, lines: list[str]):
         with self._cursor() as (conn, cur):

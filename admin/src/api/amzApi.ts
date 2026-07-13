@@ -138,37 +138,114 @@ export function updateAppIdentifyPool(
   return put<{ ok: boolean }>(`/admin/app-identify-pools/${id}`, body)
 }
 
-export type TaskScriptSchedule = {
-  task_type: string
-  start_year: number
-  start_month: number
-  start_day: number
+export type TaskScriptScheduleWindow = {
+  label: string
   start_hour: number
   start_minute: number
-  end_year: number
-  end_month: number
-  end_day: number
   end_hour: number
   end_minute: number
-  description: string
-  in_window: boolean
   start_display: string
   end_display: string
   duration_display: string
+  cross_day: boolean
+}
+
+export type TaskScriptSchedule = {
+  task_type: string
+  schedule_enabled: boolean
+  start_hour: number | null
+  start_minute: number | null
+  end_hour: number | null
+  end_minute: number | null
+  description: string
+  in_window: boolean
+  run_mode_display: string
+  windows: TaskScriptScheduleWindow[]
   timezone: string
+}
+
+/** 兼容旧版 API 返回的 custom_* 字段 */
+type TaskScriptScheduleRaw = {
+  task_type: string
+  schedule_enabled?: boolean
+  start_hour?: number | null
+  start_minute?: number | null
+  end_hour?: number | null
+  end_minute?: number | null
+  description?: string
+  in_window?: boolean
+  run_mode_display?: string
+  windows?: TaskScriptScheduleWindow[]
+  timezone?: string
+  custom_enabled?: boolean
+  custom_start_hour?: number
+  custom_start_minute?: number
+  custom_end_hour?: number
+  custom_end_minute?: number
+}
+
+function normalizeTaskScriptSchedule(raw: TaskScriptScheduleRaw): TaskScriptSchedule {
+  if (typeof raw.schedule_enabled === 'boolean' && 'start_hour' in raw) {
+    return {
+      task_type: raw.task_type,
+      schedule_enabled: raw.schedule_enabled,
+      start_hour: raw.start_hour ?? null,
+      start_minute: raw.start_minute ?? null,
+      end_hour: raw.end_hour ?? null,
+      end_minute: raw.end_minute ?? null,
+      description: raw.description ?? '',
+      in_window: raw.in_window ?? true,
+      run_mode_display: raw.run_mode_display ?? (raw.schedule_enabled ? '自定义每日时段' : '未设置（全天可执行）'),
+      windows: raw.windows ?? [],
+      timezone: raw.timezone ?? 'Asia/Shanghai',
+    }
+  }
+  const enabled = Boolean(raw.custom_enabled)
+  const win = raw.windows?.[0]
+  const startHour = enabled
+    ? (raw.custom_start_hour ?? win?.start_hour ?? raw.start_hour ?? null)
+    : null
+  const startMinute = enabled
+    ? (raw.custom_start_minute ?? win?.start_minute ?? raw.start_minute ?? null)
+    : null
+  const endHour = enabled ? (raw.custom_end_hour ?? win?.end_hour ?? raw.end_hour ?? null) : null
+  const endMinute = enabled
+    ? (raw.custom_end_minute ?? win?.end_minute ?? raw.end_minute ?? null)
+    : null
+  return {
+    task_type: raw.task_type,
+    schedule_enabled: enabled,
+    start_hour: startHour,
+    start_minute: startMinute,
+    end_hour: endHour,
+    end_minute: endMinute,
+    description: raw.description ?? '',
+    in_window: raw.in_window ?? true,
+    run_mode_display: enabled
+      ? raw.run_mode_display || '自定义每日时段'
+      : raw.run_mode_display || '未设置（全天可执行）',
+    windows: raw.windows ?? [],
+    timezone: raw.timezone ?? 'Asia/Shanghai',
+  }
 }
 
 export function fetchTaskScriptSchedule(taskType: string) {
   const enc = encodeURIComponent(taskType)
-  return get<TaskScriptSchedule>(`/admin/task-script-schedules/${enc}`)
+  return get<TaskScriptScheduleRaw>(`/admin/task-script-schedules/${enc}`).then(normalizeTaskScriptSchedule)
 }
 
 export function updateTaskScriptSchedule(
   taskType: string,
-  body: Omit<TaskScriptSchedule, 'task_type' | 'in_window' | 'start_display' | 'end_display' | 'duration_display' | 'timezone'>
+  body: {
+    start_hour: number
+    start_minute: number
+    end_hour: number
+    end_minute: number
+    description: string
+  }
 ) {
   const enc = encodeURIComponent(taskType)
-  return put<TaskScriptSchedule>(`/admin/task-script-schedules/${enc}`, body)
+  return put<TaskScriptScheduleRaw>(`/admin/task-script-schedules/${enc}`, body).then(normalizeTaskScriptSchedule)
 }
 
 export function postBatchRegister(body: {

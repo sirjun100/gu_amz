@@ -12,79 +12,136 @@ type Props = {
 }
 
 type FormState = {
-  start_year: string
-  start_month: string
-  start_day: string
   start_hour: string
   start_minute: string
-  end_year: string
-  end_month: string
-  end_day: string
   end_hour: string
   end_minute: string
   description: string
 }
 
 function scheduleToForm(s: TaskScriptSchedule): FormState {
+  const enabled = s.schedule_enabled
   return {
-    start_year: String(s.start_year),
-    start_month: String(s.start_month),
-    start_day: String(s.start_day),
-    start_hour: String(s.start_hour).padStart(2, '0'),
-    start_minute: String(s.start_minute).padStart(2, '0'),
-    end_year: String(s.end_year),
-    end_month: String(s.end_month),
-    end_day: String(s.end_day),
-    end_hour: String(s.end_hour).padStart(2, '0'),
-    end_minute: String(s.end_minute).padStart(2, '0'),
+    start_hour: enabled && s.start_hour != null ? String(s.start_hour) : '',
+    start_minute: enabled && s.start_minute != null ? String(s.start_minute) : '',
+    end_hour: enabled && s.end_hour != null ? String(s.end_hour) : '',
+    end_minute: enabled && s.end_minute != null ? String(s.end_minute) : '',
     description: s.description || '',
   }
 }
 
-function parseIntField(v: string, label: string): number {
-  const n = parseInt(v, 10)
-  if (Number.isNaN(n)) {
-    throw new Error(`${label} 须为数字`)
+function parseIntField(
+  v: string,
+  label: string,
+  min: number,
+  max: number,
+  emptyDefault?: number
+): number {
+  const raw = String(v ?? '').trim()
+  if (raw === '' && emptyDefault !== undefined) {
+    return emptyDefault
+  }
+  const n = parseInt(raw, 10)
+  if (Number.isNaN(n) || n < min || n > max) {
+    throw new Error(`${label} 须在 ${min}-${max} 之间`)
   }
   return n
 }
 
-function DateTimeFields({
+function formatApiError(e: unknown, fallback: string): string {
+  if (e instanceof Error && e.message && e.message !== 'Network Error') {
+    return e.message
+  }
+  const ax = e as { response?: { status?: number; data?: { detail?: unknown } }; message?: string }
+  const status = ax.response?.status
+  const detail = ax.response?.data?.detail
+  if (status === 401) return '登录已过期，请重新登录后再保存'
+  if (status === 403) return '需要管理员权限'
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail
+  }
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'msg' in item) {
+          return String((item as { msg?: string }).msg || '')
+        }
+        return ''
+      })
+      .filter(Boolean)
+    if (msgs.length) return msgs.join('；')
+  }
+  if (ax.message === 'Network Error') return '网络错误，请确认服务已启动'
+  if (status) return `${fallback}（HTTP ${status}）`
+  return fallback
+}
+
+function formatTimeDisplay(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+function buildPreviewFromTimes(
+  startHour: number,
+  startMinute: number,
+  endHour: number,
+  endMinute: number
+) {
+  const startM = startHour * 60 + startMinute
+  const endM = endHour * 60 + endMinute
+  const crossDay = startM > endM
+  let durationM = endM - startM
+  if (durationM <= 0) durationM += 24 * 60
+  const hours = Math.floor(durationM / 60)
+  const minutes = durationM % 60
+  const durationParts: string[] = []
+  if (hours) durationParts.push(`${hours}小时`)
+  if (minutes || !durationParts.length) durationParts.push(`${minutes}分钟`)
+  return {
+    startDisplay: `每天 ${formatTimeDisplay(startHour, startMinute)}（北京时间）`,
+    endDisplay: `每天 ${formatTimeDisplay(endHour, endMinute)}（北京时间）${crossDay ? '，次日' : ''}`,
+    durationDisplay: `每段 ${durationParts.join('')}`,
+    crossDay,
+  }
+}
+
+function TimeFields({
   label,
-  prefix,
+  hourKey,
+  minuteKey,
   form,
   onChange,
 }: {
   label: string
-  prefix: 'start' | 'end'
+  hourKey: 'start_hour' | 'end_hour'
+  minuteKey: 'start_minute' | 'end_minute'
   form: FormState
   onChange: (key: keyof FormState, value: string) => void
 }) {
-  const fields: { key: keyof FormState; placeholder: string; max: number; width: string }[] = [
-    { key: `${prefix}_year` as keyof FormState, placeholder: '年', max: 2100, width: 'w-20' },
-    { key: `${prefix}_month` as keyof FormState, placeholder: '月', max: 12, width: 'w-14' },
-    { key: `${prefix}_day` as keyof FormState, placeholder: '日', max: 31, width: 'w-14' },
-    { key: `${prefix}_hour` as keyof FormState, placeholder: '时', max: 23, width: 'w-14' },
-    { key: `${prefix}_minute` as keyof FormState, placeholder: '分', max: 59, width: 'w-14' },
-  ]
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}（北京时间 24 小时制）</div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {fields.map((f, idx) => (
-          <span key={f.key} className="flex items-center gap-1">
-            <input
-              className={cn(inp, f.width, 'text-center')}
-              type="number"
-              min={0}
-              max={f.max}
-              placeholder={f.placeholder}
-              value={form[f.key]}
-              onChange={(e) => onChange(f.key, e.target.value)}
-            />
-            {idx < fields.length - 1 && <span className="text-xs text-slate-400">/</span>}
-          </span>
-        ))}
+      <div className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</div>
+      <div className="flex items-center gap-1.5">
+        <input
+          className={cn(inp, 'w-16 text-center')}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder="时"
+          value={form[hourKey]}
+          onChange={(e) => onChange(hourKey, e.target.value.replace(/[^\d]/g, ''))}
+        />
+        <span className="text-slate-500">:</span>
+        <input
+          className={cn(inp, 'w-16 text-center')}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder="分"
+          value={form[minuteKey]}
+          onChange={(e) => onChange(minuteKey, e.target.value.replace(/[^\d]/g, ''))}
+        />
+        <span className="text-xs text-slate-400">24 小时制</span>
       </div>
     </div>
   )
@@ -119,42 +176,83 @@ export function TaskScriptSchedulePanel({ taskType, title }: Props) {
   }
 
   const preview = useMemo(() => {
-    if (!schedule) return null
-    return {
-      inWindow: schedule.in_window,
-      startDisplay: schedule.start_display,
-      endDisplay: schedule.end_display,
-      durationDisplay: schedule.duration_display,
+    if (!form) return null
+
+    const hasStart = form.start_hour.trim() !== ''
+    const hasEnd = form.end_hour.trim() !== ''
+    if (!hasStart && !hasEnd) {
+      return {
+        configured: false as const,
+        inWindow: schedule?.in_window ?? true,
+        runModeDisplay: schedule?.run_mode_display ?? '未设置（全天可执行）',
+        hint: '请在上方填写每日开始/结束的时、分后保存。结束时刻早于开始时刻即为跨天（如 22:00 → 次日 09:00）。',
+      }
     }
-  }, [schedule])
+    try {
+      const startHour = parseIntField(form.start_hour, '开始时', 0, 23)
+      const startMinute = parseIntField(form.start_minute, '开始分', 0, 59, 0)
+      const endHour = parseIntField(form.end_hour, '结束时', 0, 23)
+      const endMinute = parseIntField(form.end_minute, '结束分', 0, 59, 0)
+      const times = buildPreviewFromTimes(startHour, startMinute, endHour, endMinute)
+      const savedMatchesForm =
+        schedule?.schedule_enabled &&
+        schedule.start_hour === startHour &&
+        schedule.start_minute === startMinute &&
+        schedule.end_hour === endHour &&
+        schedule.end_minute === endMinute
+      return {
+        configured: true as const,
+        inWindow: savedMatchesForm ? (schedule?.in_window ?? false) : (schedule?.in_window ?? false),
+        runModeDisplay: savedMatchesForm
+          ? (schedule?.run_mode_display ?? '自定义每日时段')
+          : '自定义每日时段（保存后生效）',
+        ...times,
+        fromSaved: savedMatchesForm,
+      }
+    } catch {
+      return {
+        configured: false as const,
+        inWindow: schedule?.in_window ?? true,
+        runModeDisplay: schedule?.run_mode_display ?? '未设置（全天可执行）',
+        hint: '请完整填写有效的时、分后再保存。',
+      }
+    }
+  }, [form, schedule])
 
   const save = async () => {
     if (!form) return
+    if (!form.start_hour.trim() || !form.end_hour.trim()) {
+      addToast({ message: '请填写开始与结束的「时」后再保存', type: 'error' })
+      return
+    }
     setSaving(true)
     try {
       const body = {
-        start_year: parseIntField(form.start_year, '开始年'),
-        start_month: parseIntField(form.start_month, '开始月'),
-        start_day: parseIntField(form.start_day, '开始日'),
-        start_hour: parseIntField(form.start_hour, '开始时'),
-        start_minute: parseIntField(form.start_minute, '开始分'),
-        end_year: parseIntField(form.end_year, '结束年'),
-        end_month: parseIntField(form.end_month, '结束月'),
-        end_day: parseIntField(form.end_day, '结束日'),
-        end_hour: parseIntField(form.end_hour, '结束时'),
-        end_minute: parseIntField(form.end_minute, '结束分'),
+        start_hour: parseIntField(form.start_hour, '开始时', 0, 23),
+        start_minute: parseIntField(form.start_minute, '开始分', 0, 59, 0),
+        end_hour: parseIntField(form.end_hour, '结束时', 0, 23),
+        end_minute: parseIntField(form.end_minute, '结束分', 0, 59, 0),
         description: form.description.trim(),
       }
       const s = await updateTaskScriptSchedule(taskType, body)
       setSchedule(s)
-      setForm(scheduleToForm(s))
-      addToast({ message: '运行时段与脚本说明已保存', type: 'success' })
+      setForm({
+        start_hour: String(body.start_hour),
+        start_minute: String(body.start_minute),
+        end_hour: String(body.end_hour),
+        end_minute: String(body.end_minute),
+        description: s.description || body.description,
+      })
+      const sh = String(body.start_hour).padStart(2, '0')
+      const sm = String(body.start_minute).padStart(2, '0')
+      const eh = String(body.end_hour).padStart(2, '0')
+      const em = String(body.end_minute).padStart(2, '0')
+      addToast({
+        message: `已保存运行时段 ${sh}:${sm} → ${eh}:${em}（北京时间）`,
+        type: 'success',
+      })
     } catch (e: unknown) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '保存失败'
-      addToast({ message: String(msg), type: 'error' })
+      addToast({ message: formatApiError(e, '保存失败'), type: 'error' })
     } finally {
       setSaving(false)
     }
@@ -169,9 +267,11 @@ export function TaskScriptSchedulePanel({ taskType, title }: Props) {
         <p className="text-sm text-slate-500">加载中…</p>
       ) : (
         <>
+          {/* 时段设置：面板上方 */}
           <div className="space-y-3 rounded-md border border-slate-100 dark:border-slate-700 p-3 bg-slate-50/80 dark:bg-slate-900/20">
-            <DateTimeFields label="开始时间" prefix="start" form={form} onChange={onField} />
-            <DateTimeFields label="结束时间" prefix="end" form={form} onChange={onField} />
+            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">自定义运行时段（北京时间）</p>
+            <TimeFields label="每天开始" hourKey="start_hour" minuteKey="start_minute" form={form} onChange={onField} />
+            <TimeFields label="每天结束" hourKey="end_hour" minuteKey="end_minute" form={form} onChange={onField} />
             <button
               type="button"
               disabled={saving}
@@ -180,23 +280,40 @@ export function TaskScriptSchedulePanel({ taskType, title }: Props) {
             >
               {saving ? '保存中…' : '保存时段与说明'}
             </button>
-            <p className="text-xs text-slate-500">支持跨天时段。仅在此时间段内客户端才能领取并执行该类型任务。</p>
           </div>
 
+          {/* 运行时间展示 */}
           {preview && (
             <div className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
+              <div>
+                运行模式：<span className="font-medium">{preview.runModeDisplay}</span>
+              </div>
               <div>
                 当前状态：
                 <span className={cn('font-medium', preview.inWindow ? 'text-green-600' : 'text-amber-600')}>
                   {preview.inWindow ? '在可执行时段内' : '不在可执行时段内'}
                 </span>
               </div>
-              <div>运行开始：{preview.startDisplay}</div>
-              <div>运行结束：{preview.endDisplay}</div>
-              <div>时段长度：{preview.durationDisplay}</div>
+              {preview.configured ? (
+                <div className="rounded border border-slate-100 dark:border-slate-700 p-2 space-y-0.5">
+                  <div className="font-medium">{preview.fromSaved ? '已保存的运行时段' : '运行时段预览'}</div>
+                  <div>开始：{preview.startDisplay}</div>
+                  <div>结束：{preview.endDisplay}</div>
+                  <div>时长：{preview.durationDisplay}</div>
+                  {preview.crossDay && <div className="text-amber-600">跨天时段</div>}
+                </div>
+              ) : (
+                <div className="rounded border border-slate-100 dark:border-slate-700 p-2 text-slate-500">
+                  {preview.hint}
+                </div>
+              )}
+              <p className="text-slate-500 pt-1">
+                时段内可领取并执行任务；时段外即使有 pending 任务也不会领取，且不会标记为 running。
+              </p>
             </div>
           )}
 
+          {/* 脚本说明：面板下方 */}
           <label className="block text-sm space-y-1">
             <span className="text-slate-600 dark:text-slate-400">脚本功能说明（可编辑）</span>
             <textarea

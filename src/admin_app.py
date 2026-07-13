@@ -224,14 +224,8 @@ class ClientAppAdClickBody(BaseModel):
 
 
 class TaskScriptScheduleBody(BaseModel):
-    start_year: int = Field(..., ge=2000, le=2100)
-    start_month: int = Field(..., ge=1, le=12)
-    start_day: int = Field(..., ge=1, le=31)
     start_hour: int = Field(..., ge=0, le=23)
     start_minute: int = Field(..., ge=0, le=59)
-    end_year: int = Field(..., ge=2000, le=2100)
-    end_month: int = Field(..., ge=1, le=12)
-    end_day: int = Field(..., ge=1, le=31)
     end_hour: int = Field(..., ge=0, le=23)
     end_minute: int = Field(..., ge=0, le=59)
     description: str = Field("", max_length=8000)
@@ -663,20 +657,17 @@ async def admin_put_task_script_schedule(user: CurrentUser, task_type: str, body
     try:
         return db.upsert_task_script_schedule(
             tt,
-            start_year=body.start_year,
-            start_month=body.start_month,
-            start_day=body.start_day,
             start_hour=body.start_hour,
             start_minute=body.start_minute,
-            end_year=body.end_year,
-            end_month=body.end_month,
-            end_day=body.end_day,
             end_hour=body.end_hour,
             end_minute=body.end_minute,
             description=body.description,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except pymysql.Error as e:
+        LOGGER.exception("保存运行时段失败 task_type=%s", tt)
+        raise HTTPException(status_code=500, detail=f"数据库保存失败：{e}")
 
 
 @app.post("/api/v1/admin/tasks/batch-generate-new-environment")
@@ -1894,7 +1885,10 @@ async def spa_index():
         return {
             "detail": "请先构建前端：cd admin && npm run build",
         }
-    return FileResponse(index)
+    return FileResponse(
+        index,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/{full_path:path}")
