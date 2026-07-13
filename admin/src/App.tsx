@@ -115,8 +115,8 @@ function App() {
             path="tasks/sp-vertical-ad-double-keywords-3min"
             element={
               <AppClickTaskPage
-                taskType="SP常规广告品牌黑名单模式"
-                title="SP常规广告品牌黑名单模式"
+                taskType="SP常规广告品牌黑名单"
+                title="SP常规广告品牌黑名单"
               />
             }
           />

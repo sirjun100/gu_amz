@@ -343,7 +343,7 @@ def _distribute_total(total: int, n: int) -> list[int]:
 
 
 CLICK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
-APP_CLICK_TYPES = frozenset({"search_click_app", "SP常规广告品牌黑名单模式"})
+APP_CLICK_TYPES = frozenset({"search_click_app", "SP常规广告品牌黑名单"})
 GENERATE_NEW_ENVIRONMENT_TASK_TYPE = "generate_new_environment"
 
 
