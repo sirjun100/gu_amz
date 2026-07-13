@@ -22,7 +22,7 @@ type AppClickTaskPageProps = {
 
 export function AppClickTaskPage({
   taskType = 'search_click_app',
-  title = '搜索产品点击APP版本',
+  title = '全广告品牌黑名单模式',
 }: AppClickTaskPageProps) {
   const { addToast } = useUIStore()
   const [devices, setDevices] = useState<DeviceOption[]>([])

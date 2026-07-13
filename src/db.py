@@ -18,7 +18,7 @@ from .totp_qr import decode_totp_secret_from_image_bytes, totp_current_code
 load_dotenv()
 
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
-APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP竖版广告双关键词_3分钟版本"})
+APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP常规广告品牌黑名单模式"})
 ALL_CLICK_TASK_TYPES = CLICK_TASK_TYPES | APP_CLICK_TASK_TYPES
 SIMPLE_TASK_TYPES = frozenset({"generate_new_environment"})
 

@@ -64,7 +64,7 @@ export function AppAdClickStatsPage() {
   return (
     <div className="space-y-4 w-full">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">APP广告点击统计</h1>
+        <h1 className="text-lg font-semibold text-slate-900 dark:text-white">全广告品牌黑名单模式结果</h1>
       </div>
       <div className="flex flex-wrap gap-2 items-center p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/30">
         <select className={cn(inp, 'max-w-[16rem]')} value={selectedKeyword} onChange={(e) => { setSelectedKeyword(e.target.value); setPage(1) }}>
