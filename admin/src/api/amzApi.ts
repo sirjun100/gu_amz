@@ -138,6 +138,39 @@ export function updateAppIdentifyPool(
   return put<{ ok: boolean }>(`/admin/app-identify-pools/${id}`, body)
 }
 
+export type TaskScriptSchedule = {
+  task_type: string
+  start_year: number
+  start_month: number
+  start_day: number
+  start_hour: number
+  start_minute: number
+  end_year: number
+  end_month: number
+  end_day: number
+  end_hour: number
+  end_minute: number
+  description: string
+  in_window: boolean
+  start_display: string
+  end_display: string
+  duration_display: string
+  timezone: string
+}
+
+export function fetchTaskScriptSchedule(taskType: string) {
+  const enc = encodeURIComponent(taskType)
+  return get<TaskScriptSchedule>(`/admin/task-script-schedules/${enc}`)
+}
+
+export function updateTaskScriptSchedule(
+  taskType: string,
+  body: Omit<TaskScriptSchedule, 'task_type' | 'in_window' | 'start_display' | 'end_display' | 'duration_display' | 'timezone'>
+) {
+  const enc = encodeURIComponent(taskType)
+  return put<TaskScriptSchedule>(`/admin/task-script-schedules/${enc}`, body)
+}
+
 export function postBatchRegister(body: {
   mode: 'manual' | 'smart'
   device_ids: string[]

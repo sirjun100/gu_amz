@@ -24,7 +24,7 @@ var AMZ_MODULE_FILES = [
   "steps/详情页同类推荐广告点击.js",
   "flows/关键词广告点击流程.js",
   "flows/关键词广告点击流程APP.js",
-  "flows/SP常规广告品牌黑名单.js",
+  "flows/SP常规广告品牌黑名单模式.js",
   "flows/相关商品广告点击流程.js",
   "flows/同行同类广告点击流程.js",
   "flows/生成新环境.js",
@@ -229,6 +229,12 @@ function 亚马逊任务入口() {
   }
 
   logd("亚马逊任务主循环启动 deviceId=" + AMZ_CONFIG.deviceId + " apiBase=" + AMZ_CONFIG.apiBase);
+
+  try {
+    运维接口.刷新任务时段配置(true);
+  } catch (eSched) {
+    logw("初始化任务时段配置失败: " + eSched);
+  }
 
   while (true) {
     AMZ_必要时心跳();

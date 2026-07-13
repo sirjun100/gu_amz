@@ -12,6 +12,108 @@ function AMZ_应用服务端策略(obj) {
   }
 }
 
+/** 服务端下发的 APP 点击类任务运行时段（北京时间），按 task_type 索引 */
+var AMZ_taskScriptSchedules = {};
+var AMZ_taskScriptSchedulesLoadedAt = 0;
+var AMZ_TASK_SCRIPT_SCHEDULE_TTL_MS = 60000;
+
+function AMZ_解析服务端时段项(item) {
+  if (item == null || typeof item !== "object") {
+    return null;
+  }
+  var tt = String(item.task_type || "").trim();
+  if (tt.length === 0) {
+    return null;
+  }
+  return {
+    task_type: tt,
+    start_year: Number(item.start_year),
+    start_month: Number(item.start_month),
+    start_day: Number(item.start_day),
+    start_hour: Number(item.start_hour),
+    start_minute: Number(item.start_minute),
+    end_year: Number(item.end_year),
+    end_month: Number(item.end_month),
+    end_day: Number(item.end_day),
+    end_hour: Number(item.end_hour),
+    end_minute: Number(item.end_minute),
+    in_window: item.in_window === true,
+  };
+}
+
+function AMZ_北京时间当前分量() {
+  try {
+    var fmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    });
+    var parts = fmt.formatToParts(new Date());
+    var map = {};
+    var i = 0;
+    for (i = 0; i < parts.length; i++) {
+      if (parts[i].type !== "literal") {
+        map[parts[i].type] = Number(parts[i].value);
+      }
+    }
+    return {
+      year: map.year,
+      month: map.month,
+      day: map.day,
+      hour: map.hour === 24 ? 0 : map.hour,
+      minute: map.minute,
+    };
+  } catch (eTz) {
+    var d = new Date();
+    var utc = d.getTime() + d.getTimezoneOffset() * 60000;
+    var bj = new Date(utc + 8 * 3600000);
+    return {
+      year: bj.getFullYear(),
+      month: bj.getMonth() + 1,
+      day: bj.getDate(),
+      hour: bj.getHours(),
+      minute: bj.getMinutes(),
+    };
+  }
+}
+
+function AMZ_时段分量转时间戳(y, m, d, h, mi) {
+  return new Date(y, m - 1, d, h, mi, 0, 0).getTime();
+}
+
+function AMZ_本地判断时段是否在窗口(schedule) {
+  if (schedule == null) {
+    return true;
+  }
+  if (schedule.in_window === true) {
+    return true;
+  }
+  if (schedule.in_window === false) {
+    return false;
+  }
+  var now = AMZ_北京时间当前分量();
+  var startTs = AMZ_时段分量转时间戳(
+    schedule.start_year,
+    schedule.start_month,
+    schedule.start_day,
+    schedule.start_hour,
+    schedule.start_minute
+  );
+  var endTs = AMZ_时段分量转时间戳(
+    schedule.end_year,
+    schedule.end_month,
+    schedule.end_day,
+    schedule.end_hour,
+    schedule.end_minute
+  );
+  var nowTs = AMZ_时段分量转时间戳(now.year, now.month, now.day, now.hour, now.minute);
+  return startTs <= nowTs && nowTs <= endTs;
+}
+
 var 运维接口 = {
   心跳: function () {
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/heartbeat";
@@ -78,15 +180,67 @@ var 运维接口 = {
     return false;
   },
 
+  /** 拉取并缓存各任务类型的可执行时段（北京时间） */
+  刷新任务时段配置: function (force) {
+    var now = Date.now();
+    if (force !== true && AMZ_taskScriptSchedulesLoadedAt > 0 && now - AMZ_taskScriptSchedulesLoadedAt < AMZ_TASK_SCRIPT_SCHEDULE_TTL_MS) {
+      return true;
+    }
+    var url = AMZ_CONFIG.apiBase + "/api/v1/client/task-script-schedules";
+    var res = http.httpGet(url, {}, AMZ_CONFIG.httpTimeoutMs, null);
+    if (res == null || res === "") {
+      logw("刷新任务时段配置无响应");
+      return false;
+    }
+    try {
+      var j = typeof res === "object" && res !== null && !Array.isArray(res) ? res : JSON.parse(String(res));
+      var items = j.items != null && typeof j.items.length === "number" ? j.items : [];
+      var next = {};
+      var i = 0;
+      for (i = 0; i < items.length; i++) {
+        var one = AMZ_解析服务端时段项(items[i]);
+        if (one != null) {
+          next[one.task_type] = one;
+        }
+      }
+      AMZ_taskScriptSchedules = next;
+      AMZ_taskScriptSchedulesLoadedAt = Date.now();
+      return true;
+    } catch (e) {
+      logw("刷新任务时段配置解析失败: " + e);
+      return false;
+    }
+  },
+
+  /** 判断某任务类型当前是否在可执行时段内（优先用服务端 in_window） */
+  任务类型在可执行时段: function (taskType) {
+    var tt = taskType != null ? String(taskType).trim() : "";
+    if (tt.length === 0) {
+      return true;
+    }
+    this.刷新任务时段配置(false);
+    var schedule = AMZ_taskScriptSchedules[tt];
+    if (schedule == null) {
+      return true;
+    }
+    return AMZ_本地判断时段是否在窗口(schedule);
+  },
+
   /**
    * @param taskType 可选：search_click | related_click | similar_click | register
    * @return task 对象或 null
    */
   领取任务: function (taskType) {
+    this.刷新任务时段配置(false);
+    var ttFilter = taskType != null ? String(taskType).trim() : "";
+    if (ttFilter.length > 0 && !this.任务类型在可执行时段(ttFilter)) {
+      logd("领取任务跳过: 类型 " + ttFilter + " 不在可执行时段内");
+      return null;
+    }
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/tasks/next";
     var params = { device_id: AMZ_CONFIG.deviceId };
-    if (taskType != null && String(taskType).length > 0) {
-      params.task_type = String(taskType);
+    if (ttFilter.length > 0) {
+      params.task_type = ttFilter;
     }
     var res = http.httpGet(url, params, AMZ_CONFIG.httpTimeoutMs, null);
     if (res == null || res === "") {

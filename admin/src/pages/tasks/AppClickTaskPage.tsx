@@ -8,6 +8,7 @@ import {
   updateAppIdentifyPool,
   type AppIdentifyPoolRow,
 } from '@/api/amzApi'
+import { TaskScriptSchedulePanel } from '@/components/tasks/TaskScriptSchedulePanel'
 import type { DeviceOption } from '@/types/amz'
 import { useUIStore } from '@/store/uiStore'
 import { cn } from '@/utils/cn'
@@ -141,11 +142,11 @@ export function AppClickTaskPage({
   }
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-7xl">
       <div>
         <h1 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h1>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="space-y-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/30">
           <label className="block text-sm">
             <span className="text-slate-600 dark:text-slate-400">选择识别词配置</span>
@@ -245,6 +246,8 @@ export function AppClickTaskPage({
             ))}
           </div>
         </div>
+
+        <TaskScriptSchedulePanel taskType={taskType} title={title} />
       </div>
     </div>
   )

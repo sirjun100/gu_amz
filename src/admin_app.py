@@ -223,6 +223,20 @@ class ClientAppAdClickBody(BaseModel):
     keyword: str | None = Field(None, max_length=512)
 
 
+class TaskScriptScheduleBody(BaseModel):
+    start_year: int = Field(..., ge=2000, le=2100)
+    start_month: int = Field(..., ge=1, le=12)
+    start_day: int = Field(..., ge=1, le=31)
+    start_hour: int = Field(..., ge=0, le=23)
+    start_minute: int = Field(..., ge=0, le=59)
+    end_year: int = Field(..., ge=2000, le=2100)
+    end_month: int = Field(..., ge=1, le=12)
+    end_day: int = Field(..., ge=1, le=31)
+    end_hour: int = Field(..., ge=0, le=23)
+    end_minute: int = Field(..., ge=0, le=59)
+    description: str = Field("", max_length=8000)
+
+
 class AppIdentifyPoolBody(BaseModel):
     identify_word: str = Field(..., min_length=1, max_length=512)
     keywords: list[str] = Field(default_factory=list)
@@ -627,6 +641,42 @@ async def admin_tasks_batch_click_app(user: CurrentUser, body: BatchAppClickTask
         persist_data=body.save_data_record,
     )
     return {"ok": True, "created": n}
+
+
+@app.get("/api/v1/admin/task-script-schedules/{task_type}")
+async def admin_get_task_script_schedule(user: CurrentUser, task_type: str):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    tt = task_type.strip()
+    if tt not in APP_CLICK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type 无效")
+    return db.get_task_script_schedule(tt)
+
+
+@app.put("/api/v1/admin/task-script-schedules/{task_type}")
+async def admin_put_task_script_schedule(user: CurrentUser, task_type: str, body: TaskScriptScheduleBody):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    tt = task_type.strip()
+    if tt not in APP_CLICK_TYPES:
+        raise HTTPException(status_code=400, detail="task_type 无效")
+    try:
+        return db.upsert_task_script_schedule(
+            tt,
+            start_year=body.start_year,
+            start_month=body.start_month,
+            start_day=body.start_day,
+            start_hour=body.start_hour,
+            start_minute=body.start_minute,
+            end_year=body.end_year,
+            end_month=body.end_month,
+            end_day=body.end_day,
+            end_hour=body.end_hour,
+            end_minute=body.end_minute,
+            description=body.description,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/v1/admin/tasks/batch-generate-new-environment")
@@ -1695,10 +1745,17 @@ async def client_tasks_next(
     db.upsert_device_heartbeat(device_id)
     pol = db.get_device_screenshot_upload_policy(device_id)
     tt = task_type.strip() if task_type else None
+    if tt and not db.is_task_type_in_schedule_window(tt):
+        return {"task": None, "screenshot_upload_policy": pol, "schedule_blocked": True}
     task = db.claim_next_task(device_id, tt)
     if not task:
         return {"task": None, "screenshot_upload_policy": pol}
     return {"task": _serialize_task_row(task), "screenshot_upload_policy": pol}
+
+
+@app.get("/api/v1/client/task-script-schedules")
+async def client_task_script_schedules():
+    return {"items": db.list_task_script_schedules()}
 
 
 @app.post("/api/v1/client/tasks/{task_id}/screenshots")

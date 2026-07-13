@@ -25,10 +25,28 @@ SIMPLE_TASK_TYPES = frozenset({"generate_new_environment"})
 SCREENSHOT_UPLOAD_POLICIES = frozenset({"all", "failed_only", "none"})
 try:
     NY_TZ = ZoneInfo("America/New_York")
+    BJ_TZ = ZoneInfo("Asia/Shanghai")
 except ZoneInfoNotFoundError as e:
     raise RuntimeError(
-        "缺少时区数据 America/New_York。请安装 tzdata：python -m pip install tzdata"
+        "缺少时区数据 America/New_York / Asia/Shanghai。请安装 tzdata：python -m pip install tzdata"
     ) from e
+
+DEFAULT_TASK_SCRIPT_DESCRIPTIONS: dict[str, str] = {
+    "search_click_app": (
+        "全广告品牌黑名单：在亚马逊 APP 中模拟真实用户完整动线。"
+        "打开 AMG 环境管理并选择环境，检测手机联网后打开亚马逊 APP，"
+        "登录账号，随机关键词搜索浏览并加购，最后按识别词（品牌）、搜索词与价格匹配点击广告商品，"
+        "进入详情页上下滑动浏览约 3 分钟后上报点击记录。"
+        "全流程约 5 大步骤，单次任务通常需十余分钟。"
+    ),
+    "SP常规广告品牌黑名单": (
+        "SP 常规广告品牌黑名单：在亚马逊 APP 中执行 SP 常规广告点击流程（无联网检测步骤）。"
+        "打开 AMG 环境、启动亚马逊 APP 并随机浏览首页，登录账号后随机关键词浏览加购，"
+        "再按识别词（品牌）、搜索词与价格定位并点击 SP 常规广告，"
+        "详情页浏览约 3 分钟后上报点击。"
+        "全流程约 5 步，单次任务通常需十余分钟。"
+    ),
+}
 
 
 def ny_today_date() -> date:
@@ -299,6 +317,7 @@ class Database:
         self._migrate_captcha_assist_sessions()
         self._migrate_app_ad_click_records()
         self._migrate_app_identify_pools()
+        self._migrate_task_script_schedules()
         self._ensure_default_admin()
         self._ensure_default_app_settings()
 
@@ -370,6 +389,46 @@ class Database:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
+
+    def _migrate_task_script_schedules(self):
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS task_script_schedules (
+                    task_type VARCHAR(64) NOT NULL PRIMARY KEY,
+                    start_year INT NOT NULL,
+                    start_month INT NOT NULL,
+                    start_day INT NOT NULL,
+                    start_hour INT NOT NULL,
+                    start_minute INT NOT NULL,
+                    end_year INT NOT NULL,
+                    end_month INT NOT NULL,
+                    end_day INT NOT NULL,
+                    end_hour INT NOT NULL,
+                    end_minute INT NOT NULL,
+                    description TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            for tt in APP_CLICK_TASK_TYPES:
+                cur.execute(
+                    "SELECT task_type FROM task_script_schedules WHERE task_type = %s",
+                    (tt,),
+                )
+                if cur.fetchone():
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO task_script_schedules (
+                        task_type,
+                        start_year, start_month, start_day, start_hour, start_minute,
+                        end_year, end_month, end_day, end_hour, end_minute,
+                        description
+                    ) VALUES (%s, 2020, 1, 1, 0, 0, 2099, 12, 31, 23, 59, %s)
+                    """,
+                    (tt, DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(tt, "")),
+                )
 
     def _migrate_register_code_pools(self):
         with self._cursor() as (conn, cur):
@@ -636,6 +695,178 @@ class Database:
     def set_task_retention_days(self, days: int) -> None:
         d = max(1, min(int(days), 3650))
         self.set_app_setting("task_retention_days", str(d))
+
+    @staticmethod
+    def _schedule_part(row: dict, prefix: str) -> datetime:
+        return datetime(
+            int(row[f"{prefix}_year"]),
+            int(row[f"{prefix}_month"]),
+            int(row[f"{prefix}_day"]),
+            int(row[f"{prefix}_hour"]),
+            int(row[f"{prefix}_minute"]),
+            tzinfo=BJ_TZ,
+        )
+
+    @staticmethod
+    def _format_bj_schedule_display(dt: datetime) -> str:
+        return dt.strftime("%Y年%m月%d日 %H:%M")
+
+    @staticmethod
+    def _format_schedule_duration(start: datetime, end: datetime) -> str:
+        delta = end - start
+        if delta.total_seconds() < 0:
+            return "无效（结束早于开始）"
+        total_minutes = int(delta.total_seconds() // 60)
+        days, rem = divmod(total_minutes, 60 * 24)
+        hours, minutes = divmod(rem, 60)
+        parts: list[str] = []
+        if days:
+            parts.append(f"{days}天")
+        if hours:
+            parts.append(f"{hours}小时")
+        if minutes or not parts:
+            parts.append(f"{minutes}分钟")
+        return "".join(parts)
+
+    def serialize_task_script_schedule(self, row: dict | None, task_type: str) -> dict:
+        if row is None:
+            row = {
+                "task_type": task_type,
+                "start_year": 2020,
+                "start_month": 1,
+                "start_day": 1,
+                "start_hour": 0,
+                "start_minute": 0,
+                "end_year": 2099,
+                "end_month": 12,
+                "end_day": 31,
+                "end_hour": 23,
+                "end_minute": 59,
+                "description": DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(task_type, ""),
+            }
+        start = self._schedule_part(row, "start")
+        end = self._schedule_part(row, "end")
+        now = datetime.now(BJ_TZ)
+        return {
+            "task_type": task_type,
+            "start_year": int(row["start_year"]),
+            "start_month": int(row["start_month"]),
+            "start_day": int(row["start_day"]),
+            "start_hour": int(row["start_hour"]),
+            "start_minute": int(row["start_minute"]),
+            "end_year": int(row["end_year"]),
+            "end_month": int(row["end_month"]),
+            "end_day": int(row["end_day"]),
+            "end_hour": int(row["end_hour"]),
+            "end_minute": int(row["end_minute"]),
+            "description": row.get("description") or "",
+            "in_window": start <= now <= end,
+            "start_display": self._format_bj_schedule_display(start),
+            "end_display": self._format_bj_schedule_display(end),
+            "duration_display": self._format_schedule_duration(start, end),
+            "timezone": "Asia/Shanghai",
+        }
+
+    def get_task_script_schedule_row(self, task_type: str) -> dict | None:
+        tt = (task_type or "").strip()
+        if not tt:
+            return None
+        with self._cursor() as (conn, cur):
+            cur.execute("SELECT * FROM task_script_schedules WHERE task_type = %s", (tt,))
+            return cur.fetchone()
+
+    def get_task_script_schedule(self, task_type: str) -> dict:
+        tt = (task_type or "").strip()
+        row = self.get_task_script_schedule_row(tt)
+        return self.serialize_task_script_schedule(row, tt)
+
+    def list_task_script_schedules(self, task_types: frozenset[str] | None = None) -> list[dict]:
+        types = sorted(task_types or APP_CLICK_TASK_TYPES)
+        return [self.get_task_script_schedule(tt) for tt in types]
+
+    def upsert_task_script_schedule(
+        self,
+        task_type: str,
+        *,
+        start_year: int,
+        start_month: int,
+        start_day: int,
+        start_hour: int,
+        start_minute: int,
+        end_year: int,
+        end_month: int,
+        end_day: int,
+        end_hour: int,
+        end_minute: int,
+        description: str,
+    ) -> dict:
+        tt = (task_type or "").strip()
+        if tt not in APP_CLICK_TASK_TYPES:
+            raise ValueError("invalid task_type")
+        start = datetime(start_year, start_month, start_day, start_hour, start_minute, tzinfo=BJ_TZ)
+        end = datetime(end_year, end_month, end_day, end_hour, end_minute, tzinfo=BJ_TZ)
+        if end < start:
+            raise ValueError("结束时间不能早于开始时间")
+        desc = (description or "").strip()
+        if not desc:
+            desc = DEFAULT_TASK_SCRIPT_DESCRIPTIONS.get(tt, "")
+        with self._cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO task_script_schedules (
+                    task_type,
+                    start_year, start_month, start_day, start_hour, start_minute,
+                    end_year, end_month, end_day, end_hour, end_minute,
+                    description
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    start_year = VALUES(start_year),
+                    start_month = VALUES(start_month),
+                    start_day = VALUES(start_day),
+                    start_hour = VALUES(start_hour),
+                    start_minute = VALUES(start_minute),
+                    end_year = VALUES(end_year),
+                    end_month = VALUES(end_month),
+                    end_day = VALUES(end_day),
+                    end_hour = VALUES(end_hour),
+                    end_minute = VALUES(end_minute),
+                    description = VALUES(description)
+                """,
+                (
+                    tt,
+                    start_year,
+                    start_month,
+                    start_day,
+                    start_hour,
+                    start_minute,
+                    end_year,
+                    end_month,
+                    end_day,
+                    end_hour,
+                    end_minute,
+                    desc,
+                ),
+            )
+        return self.get_task_script_schedule(tt)
+
+    def is_task_type_in_schedule_window(self, task_type: str) -> bool:
+        tt = (task_type or "").strip()
+        if tt not in APP_CLICK_TASK_TYPES:
+            return True
+        row = self.get_task_script_schedule_row(tt)
+        if row is None:
+            return True
+        now = datetime.now(BJ_TZ)
+        start = self._schedule_part(row, "start")
+        end = self._schedule_part(row, "end")
+        return start <= now <= end
+
+    def get_blocked_app_click_task_types(self) -> list[str]:
+        blocked: list[str] = []
+        for tt in APP_CLICK_TASK_TYPES:
+            if not self.is_task_type_in_schedule_window(tt):
+                blocked.append(tt)
+        return blocked
 
     def purge_completed_tasks_older_than_days(self, days: int) -> int:
         """Delete finished tasks (success/failed) whose finished_at is older than N days.
@@ -2754,9 +2985,12 @@ class Database:
 
     def claim_next_task(self, device_id: str, task_type: str | None = None):
         did = device_id.strip()
+        blocked = self.get_blocked_app_click_task_types()
         with self._cursor() as (conn, cur):
             if task_type and task_type.strip():
                 tt = task_type.strip()
+                if tt in blocked:
+                    return None
                 cur.execute(
                     """
                     SELECT id FROM tasks
@@ -2768,16 +3002,30 @@ class Database:
                     (did, tt),
                 )
             else:
-                cur.execute(
-                    """
-                    SELECT id FROM tasks
-                    WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
-                    ORDER BY id ASC
-                    LIMIT 1
-                    FOR UPDATE
-                    """,
-                    (did,),
-                )
+                if blocked:
+                    placeholders = ",".join(["%s"] * len(blocked))
+                    cur.execute(
+                        f"""
+                        SELECT id FROM tasks
+                        WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
+                          AND task_type NOT IN ({placeholders})
+                        ORDER BY id ASC
+                        LIMIT 1
+                        FOR UPDATE
+                        """,
+                        [did, *blocked],
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id FROM tasks
+                        WHERE status = 'pending' AND (device_id IS NULL OR device_id = %s)
+                        ORDER BY id ASC
+                        LIMIT 1
+                        FOR UPDATE
+                        """,
+                        (did,),
+                    )
             row = cur.fetchone()
             if not row:
                 return None
@@ -2792,7 +3040,17 @@ class Database:
             if cur.rowcount == 0:
                 return None
             cur.execute("SELECT * FROM tasks WHERE id = %s", (tid,))
-            return cur.fetchone()
+            task = cur.fetchone()
+            if task and not self.is_task_type_in_schedule_window(str(task.get("task_type") or "")):
+                cur.execute(
+                    """
+                    UPDATE tasks SET status = 'pending', started_at = NULL
+                    WHERE id = %s AND status = 'running'
+                    """,
+                    (tid,),
+                )
+                return None
+            return task
 
     def append_task_logs(self, task_id: int, lines: list[str]):
         with self._cursor() as (conn, cur):
