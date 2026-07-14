@@ -241,6 +241,28 @@ function 亚马逊任务入口() {
 
     var task = null;
     try {
+      try {
+        运维接口.刷新任务时段配置(false);
+      } catch (eSch2) {}
+      var blockedTypes = [];
+      var kk;
+      for (kk in AMZ_taskScriptSchedules) {
+        if (!Object.prototype.hasOwnProperty.call(AMZ_taskScriptSchedules, kk)) {
+          continue;
+        }
+        if (!运维接口.任务类型在可执行时段(kk)) {
+          blockedTypes.push(kk + "(" + AMZ_时段说明(AMZ_taskScriptSchedules[kk]) + ")");
+        }
+      }
+      if (blockedTypes.length > 0) {
+        var nowBj = AMZ_北京时间当前时分();
+        logd(
+          "当前不可领取的时段受限任务: " +
+            blockedTypes.join(", ") +
+            "；北京时间现在 " +
+            AMZ_格式化时分(nowBj.hour, nowBj.minute)
+        );
+      }
       task = 运维接口.领取任务(null);
     } catch (e2) {
       logw("领取任务 err: " + e2);

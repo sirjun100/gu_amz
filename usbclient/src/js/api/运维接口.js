@@ -15,7 +15,7 @@ function AMZ_应用服务端策略(obj) {
 /** 服务端下发的 APP 点击类任务运行时段（北京时间），按 task_type 索引 */
 var AMZ_taskScriptSchedules = {};
 var AMZ_taskScriptSchedulesLoadedAt = 0;
-var AMZ_TASK_SCRIPT_SCHEDULE_TTL_MS = 60000;
+var AMZ_TASK_SCRIPT_SCHEDULE_TTL_MS = 15000;
 
 function AMZ_解析服务端时段项(item) {
   if (item == null || typeof item !== "object") {
@@ -25,14 +25,45 @@ function AMZ_解析服务端时段项(item) {
   if (tt.length === 0) {
     return null;
   }
+  var enabled =
+    item.schedule_enabled === true ||
+    item.schedule_enabled === 1 ||
+    item.schedule_enabled === "1" ||
+    item.custom_enabled === true ||
+    item.custom_enabled === 1 ||
+    item.custom_enabled === "1";
+  var sh = item.start_hour != null ? item.start_hour : item.custom_start_hour;
+  var sm = item.start_minute != null ? item.start_minute : item.custom_start_minute;
+  var eh = item.end_hour != null ? item.end_hour : item.custom_end_hour;
+  var em = item.end_minute != null ? item.end_minute : item.custom_end_minute;
+  if (!enabled && (sh == null || eh == null)) {
+    // 未启用且无有效时点：全天可执行
+    return {
+      task_type: tt,
+      schedule_enabled: false,
+      start_hour: null,
+      start_minute: null,
+      end_hour: null,
+      end_minute: null,
+    };
+  }
+  if (sh == null || eh == null || isNaN(Number(sh)) || isNaN(Number(eh))) {
+    return {
+      task_type: tt,
+      schedule_enabled: false,
+      start_hour: null,
+      start_minute: null,
+      end_hour: null,
+      end_minute: null,
+    };
+  }
   return {
     task_type: tt,
-    schedule_enabled: item.schedule_enabled === true,
-    start_hour: Number(item.start_hour != null ? item.start_hour : item.custom_start_hour),
-    start_minute: Number(item.start_minute != null ? item.start_minute : item.custom_start_minute),
-    end_hour: Number(item.end_hour != null ? item.end_hour : item.custom_end_hour),
-    end_minute: Number(item.end_minute != null ? item.end_minute : item.custom_end_minute),
-    in_window: item.schedule_enabled === true ? item.in_window === true : true,
+    schedule_enabled: enabled,
+    start_hour: Number(sh),
+    start_minute: Number(sm != null && !isNaN(Number(sm)) ? sm : 0),
+    end_hour: Number(eh),
+    end_minute: Number(em != null && !isNaN(Number(em)) ? em : 0),
   };
 }
 
@@ -45,25 +76,47 @@ function AMZ_分钟值(hour, minute) {
   return Number(hour) * 60 + Number(minute);
 }
 
+function AMZ_格式化时分(hour, minute) {
+  var h = String(Number(hour));
+  var m = String(Number(minute));
+  if (h.length < 2) h = "0" + h;
+  if (m.length < 2) m = "0" + m;
+  return h + ":" + m;
+}
+
+/**
+ * 每日可执行窗口（北京时间，含端点，支持跨天）。
+ * 同日：start <= now <= end
+ * 跨天（如 22:00→09:00）：now >= start 或 now <= end
+ */
 function AMZ_判断单个每日时段(nowHour, nowMinute, startHour, startMinute, endHour, endMinute) {
   var nowM = AMZ_分钟值(nowHour, nowMinute);
   var startM = AMZ_分钟值(startHour, startMinute);
   var endM = AMZ_分钟值(endHour, endMinute);
-  if (startM <= endM) {
-    return startM <= nowM && nowM <= endM;
+  if (isNaN(nowM) || isNaN(startM) || isNaN(endM)) {
+    return true;
+  }
+  if (startM === endM) {
+    return false;
+  }
+  if (startM < endM) {
+    return nowM >= startM && nowM <= endM;
   }
   return nowM >= startM || nowM <= endM;
 }
 
+/** 仅按本地北京时间计算，不信任缓存的 in_window（避免改时段后 TTL 内误判） */
 function AMZ_本地判断时段是否在窗口(schedule) {
-  if (schedule == null || schedule.schedule_enabled === false) {
+  if (schedule == null || schedule.schedule_enabled !== true) {
     return true;
   }
-  if (schedule.in_window === true) {
+  if (
+    schedule.start_hour == null ||
+    schedule.end_hour == null ||
+    isNaN(Number(schedule.start_hour)) ||
+    isNaN(Number(schedule.end_hour))
+  ) {
     return true;
-  }
-  if (schedule.in_window === false) {
-    return false;
   }
   var now = AMZ_北京时间当前时分();
   return AMZ_判断单个每日时段(
@@ -74,6 +127,20 @@ function AMZ_本地判断时段是否在窗口(schedule) {
     schedule.end_hour,
     schedule.end_minute
   );
+}
+
+function AMZ_时段说明(schedule) {
+  if (schedule == null || schedule.schedule_enabled !== true) {
+    return "未限制（全天可执行）";
+  }
+  var s = AMZ_格式化时分(schedule.start_hour, schedule.start_minute);
+  var e = AMZ_格式化时分(schedule.end_hour, schedule.end_minute);
+  var startM = AMZ_分钟值(schedule.start_hour, schedule.start_minute);
+  var endM = AMZ_分钟值(schedule.end_hour, schedule.end_minute);
+  if (startM > endM) {
+    return s + "→次日" + e;
+  }
+  return s + "→" + e;
 }
 
 function AMZ_北京时间当前分量() {
@@ -214,7 +281,7 @@ var 运维接口 = {
     }
   },
 
-  /** 判断某任务类型当前是否在可执行时段内（优先用服务端 in_window） */
+  /** 判断某任务类型当前是否在可执行时段内（按北京时间即时计算） */
   任务类型在可执行时段: function (taskType) {
     var tt = taskType != null ? String(taskType).trim() : "";
     if (tt.length === 0) {
@@ -233,10 +300,21 @@ var 运维接口 = {
    * @return task 对象或 null
    */
   领取任务: function (taskType) {
-    this.刷新任务时段配置(false);
+    // 每次领取前强制刷新，避免改时段后仍用过期 in_window
+    this.刷新任务时段配置(true);
     var ttFilter = taskType != null ? String(taskType).trim() : "";
     if (ttFilter.length > 0 && !this.任务类型在可执行时段(ttFilter)) {
-      logd("领取任务跳过: 类型 " + ttFilter + " 不在可执行时段内（北京时间）");
+      var sch0 = AMZ_taskScriptSchedules[ttFilter];
+      var now0 = AMZ_北京时间当前时分();
+      logd(
+        "领取任务跳过: 类型 " +
+          ttFilter +
+          " 不在可执行时段内（北京时间现在 " +
+          AMZ_格式化时分(now0.hour, now0.minute) +
+          "，窗口 " +
+          AMZ_时段说明(sch0) +
+          "）"
+      );
       return null;
     }
     var url = AMZ_CONFIG.apiBase + "/api/v1/client/tasks/next";
@@ -253,13 +331,29 @@ var 运维接口 = {
       var j = JSON.parse(res);
       AMZ_应用服务端策略(j);
       if (j.schedule_blocked === true) {
-        logd("领取任务跳过: 服务端判定当前不在可执行时段内（北京时间）");
+        var sch1 = ttFilter.length > 0 ? AMZ_taskScriptSchedules[ttFilter] : null;
+        var now1 = AMZ_北京时间当前时分();
+        logd(
+          "领取任务跳过: 服务端判定当前不在可执行时段内（北京时间现在 " +
+            AMZ_格式化时分(now1.hour, now1.minute) +
+            (sch1 != null ? "，窗口 " + AMZ_时段说明(sch1) : "") +
+            "）"
+        );
         return null;
       }
       var task = j.task;
+      // 服务端已领取并标为 running：以服务端为准，本地仅提示，不再丢弃任务
       if (task != null && task.task_type != null && !this.任务类型在可执行时段(String(task.task_type))) {
-        logd("领取任务跳过: 任务类型 " + task.task_type + " 不在可执行时段内（北京时间）");
-        return null;
+        var sch2 = AMZ_taskScriptSchedules[String(task.task_type)];
+        var now2 = AMZ_北京时间当前时分();
+        logw(
+          "领取任务警告: 本地时段校验与服务端不一致，仍执行。类型=" +
+            task.task_type +
+            " 北京时间现在 " +
+            AMZ_格式化时分(now2.hour, now2.minute) +
+            " 窗口 " +
+            AMZ_时段说明(sch2)
+        );
       }
       return task;
     } catch (e) {

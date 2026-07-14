@@ -1116,9 +1116,11 @@ class Database:
         now_m = cls._minutes_of_day(hour, minute)
         start_m = cls._minutes_of_day(start_hour, start_minute)
         end_m = cls._minutes_of_day(end_hour, end_minute)
-        if start_m <= end_m:
+        if start_m < end_m:
             return start_m <= now_m <= end_m
-        return now_m >= start_m or now_m <= end_m
+        if start_m > end_m:
+            return now_m >= start_m or now_m <= end_m
+        return False
 
     @staticmethod
     def _format_daily_time_display(hour: int, minute: int) -> str:
@@ -3529,8 +3531,12 @@ class Database:
         return True, names
 
     def claim_next_task(self, device_id: str, task_type: str | None = None):
+        """领取下一个 pending 任务。
+
+        APP 点击类若当前不在自定义可执行时段内：不会选中，更不会将 status 更新为 running。
+        """
         did = device_id.strip()
-        blocked = self.get_blocked_app_click_task_types()
+        blocked = set(self.get_blocked_app_click_task_types())
         with self._cursor() as (conn, cur):
             if task_type and task_type.strip():
                 tt = task_type.strip()
@@ -3575,9 +3581,11 @@ class Database:
             if not row:
                 return None
             tid = int(row["id"])
-            claimed_tt = str(row.get("task_type") or "")
-            if not self.is_task_type_in_schedule_window(claimed_tt):
-                return None
+            claimed_tt = str(row.get("task_type") or "").strip()
+            # 二次校验：窗外绝不更新为 running（保持 pending）
+            if claimed_tt in APP_CLICK_TASK_TYPES:
+                if claimed_tt in blocked or not self.is_task_type_in_schedule_window(claimed_tt):
+                    return None
             cur.execute(
                 """
                 UPDATE tasks SET status = 'running', started_at = CURRENT_TIMESTAMP, device_id = COALESCE(device_id, %s)

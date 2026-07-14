@@ -224,11 +224,26 @@ class ClientAppAdClickBody(BaseModel):
 
 
 class TaskScriptScheduleBody(BaseModel):
-    start_hour: int = Field(..., ge=0, le=23)
-    start_minute: int = Field(..., ge=0, le=59)
-    end_hour: int = Field(..., ge=0, le=23)
-    end_minute: int = Field(..., ge=0, le=59)
+    """兼容新旧管理端：新版用 start_*，旧版用 custom_*。"""
+    start_hour: Optional[int] = Field(None, ge=0, le=23)
+    start_minute: Optional[int] = Field(None, ge=0, le=59)
+    end_hour: Optional[int] = Field(None, ge=0, le=23)
+    end_minute: Optional[int] = Field(None, ge=0, le=59)
+    custom_enabled: Optional[bool] = None
+    custom_start_hour: Optional[int] = Field(None, ge=0, le=23)
+    custom_start_minute: Optional[int] = Field(None, ge=0, le=59)
+    custom_end_hour: Optional[int] = Field(None, ge=0, le=23)
+    custom_end_minute: Optional[int] = Field(None, ge=0, le=59)
     description: str = Field("", max_length=8000)
+
+    def resolved_times(self) -> tuple[int, int, int, int]:
+        sh = self.start_hour if self.start_hour is not None else self.custom_start_hour
+        sm = self.start_minute if self.start_minute is not None else self.custom_start_minute
+        eh = self.end_hour if self.end_hour is not None else self.custom_end_hour
+        em = self.end_minute if self.end_minute is not None else self.custom_end_minute
+        if sh is None or eh is None:
+            raise ValueError("请填写开始与结束时间")
+        return int(sh), int(sm if sm is not None else 0), int(eh), int(em if em is not None else 0)
 
 
 class AppIdentifyPoolBody(BaseModel):
@@ -655,12 +670,13 @@ async def admin_put_task_script_schedule(user: CurrentUser, task_type: str, body
     if tt not in APP_CLICK_TYPES:
         raise HTTPException(status_code=400, detail="task_type 无效")
     try:
+        sh, sm, eh, em = body.resolved_times()
         return db.upsert_task_script_schedule(
             tt,
-            start_hour=body.start_hour,
-            start_minute=body.start_minute,
-            end_hour=body.end_hour,
-            end_minute=body.end_minute,
+            start_hour=sh,
+            start_minute=sm,
+            end_hour=eh,
+            end_minute=em,
             description=body.description,
         )
     except ValueError as e:

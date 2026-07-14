@@ -245,7 +245,28 @@ export function updateTaskScriptSchedule(
   }
 ) {
   const enc = encodeURIComponent(taskType)
-  return put<TaskScriptScheduleRaw>(`/admin/task-script-schedules/${enc}`, body).then(normalizeTaskScriptSchedule)
+  // 同时发送新旧字段：旧版进程只认 custom_*，否则会“保存成功”但实际不写库
+  const payload = {
+    start_hour: body.start_hour,
+    start_minute: body.start_minute,
+    end_hour: body.end_hour,
+    end_minute: body.end_minute,
+    description: body.description,
+    schedule_mode: 'custom',
+    custom_enabled: true,
+    custom_start_hour: body.start_hour,
+    custom_start_minute: body.start_minute,
+    custom_end_hour: body.end_hour,
+    custom_end_minute: body.end_minute,
+    auto_enabled: false,
+    auto_start_hour: body.start_hour,
+    auto_start_minute: body.start_minute,
+    auto_end_hour: body.end_hour,
+    auto_end_minute: body.end_minute,
+  }
+  return put<TaskScriptScheduleRaw>(`/admin/task-script-schedules/${enc}`, payload).then(
+    normalizeTaskScriptSchedule
+  )
 }
 
 export function postBatchRegister(body: {

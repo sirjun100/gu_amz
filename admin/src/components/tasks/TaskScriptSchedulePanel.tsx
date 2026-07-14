@@ -269,7 +269,12 @@ export function TaskScriptSchedulePanel({ taskType, title }: Props) {
         <>
           {/* 时段设置：面板上方 */}
           <div className="space-y-3 rounded-md border border-slate-100 dark:border-slate-700 p-3 bg-slate-50/80 dark:bg-slate-900/20">
-            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">自定义运行时段（北京时间）</p>
+            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              自定义运行时段（北京时间，24 小时制）
+            </p>
+            <p className="text-xs text-slate-500">
+              支持跨天，例如 22:00 → 09:00（次日）。时段内可领取并执行；时段外不会领取，也不会标为 running。
+            </p>
             <TimeFields label="每天开始" hourKey="start_hour" minuteKey="start_minute" form={form} onChange={onField} />
             <TimeFields label="每天结束" hourKey="end_hour" minuteKey="end_minute" form={form} onChange={onField} />
             <button
@@ -308,7 +313,7 @@ export function TaskScriptSchedulePanel({ taskType, title }: Props) {
                 </div>
               )}
               <p className="text-slate-500 pt-1">
-                时段内可领取并执行任务；时段外即使有 pending 任务也不会领取，且不会标记为 running。
+                规则：在自定义时段内（含跨天）可领取并执行；不在时段内则获取不到任务，且状态不会被标为 running。
               </p>
             </div>
           )}
