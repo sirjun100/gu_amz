@@ -56,6 +56,7 @@ const adClickChildren: NavItem[] = [
   { icon: MousePointerClick, label: '搜索产品点击', path: '/tasks/search-click' },
   { icon: Megaphone, label: '全广告品牌黑名单', path: '/tasks/search-click-app' },
   { icon: Megaphone, label: 'SP常规广告品牌黑名单', path: '/tasks/sp-vertical-ad-double-keywords-3min' },
+  { icon: Megaphone, label: 'SP常规广告品牌白名单', path: '/tasks/sp-brand-whitelist' },
   { icon: Link2, label: '相关产品点击', path: '/tasks/related-click' },
   { icon: Copy, label: '同类产品点击', path: '/tasks/similar-click' },
   { icon: ScanBarcode, label: '目标 ASIN', path: '/target-asins' },

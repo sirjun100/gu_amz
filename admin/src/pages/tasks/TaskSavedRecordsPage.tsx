@@ -13,6 +13,8 @@ const TASK_TYPES = [
   { value: 'register', label: 'register' },
   { value: 'search_click', label: 'search_click' },
   { value: 'search_click_app', label: 'search_click_app' },
+  { value: 'SP常规广告品牌黑名单', label: 'SP常规广告品牌黑名单' },
+  { value: 'SP常规广告品牌白名单', label: 'SP常规广告品牌白名单' },
   { value: 'related_click', label: 'related_click' },
   { value: 'similar_click', label: 'similar_click' },
 ]

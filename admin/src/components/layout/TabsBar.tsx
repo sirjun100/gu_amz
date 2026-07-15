@@ -26,6 +26,7 @@ const routeTitles: Record<string, string> = {
   '/tasks/search-click': '搜索产品点击',
   '/tasks/search-click-app': '全广告品牌黑名单',
   '/tasks/sp-vertical-ad-double-keywords-3min': 'SP常规广告品牌黑名单',
+  '/tasks/sp-brand-whitelist': 'SP常规广告品牌白名单',
   '/tasks/related-click': '相关产品点击',
   '/tasks/similar-click': '同类产品点击',
   '/tasks/register': '创建亚马逊注册任务',

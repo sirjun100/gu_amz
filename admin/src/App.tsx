@@ -121,6 +121,16 @@ function App() {
             }
           />
           <Route
+            path="tasks/sp-brand-whitelist"
+            element={
+              <AppClickTaskPage
+                taskType="SP常规广告品牌白名单"
+                title="SP常规广告品牌白名单"
+                identifyWordMultiBrand
+              />
+            }
+          />
+          <Route
             path="tasks/similar-click"
             element={
               <ClickTaskPage taskType="similar_click" title="同类产品点击任务" description="字段与分配方式同搜索产品点击（keyword + res_folder_name），仅任务类型不同" />

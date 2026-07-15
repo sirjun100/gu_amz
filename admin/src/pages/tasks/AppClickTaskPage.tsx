@@ -19,11 +19,24 @@ const inp =
 type AppClickTaskPageProps = {
   taskType?: string
   title?: string
+  /** 识别词（品牌）支持英文逗号分隔多个品牌（白名单页） */
+  identifyWordMultiBrand?: boolean
+}
+
+function normalizeIdentifyWord(raw: string, multiBrand: boolean): string {
+  const s = (raw || '').trim()
+  if (!multiBrand) return s
+  return s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join(',')
 }
 
 export function AppClickTaskPage({
   taskType = 'search_click_app',
   title = '全广告品牌黑名单',
+  identifyWordMultiBrand = false,
 }: AppClickTaskPageProps) {
   const { addToast } = useUIStore()
   const [devices, setDevices] = useState<DeviceOption[]>([])
@@ -74,19 +87,25 @@ export function AppClickTaskPage({
   const onCreatePool = async () => {
     const kws = parseFormKeywords()
     const prs = parseFormPrices()
-    if (!newIdentifyWord.trim() || kws.length === 0) {
-      addToast({ message: '识别词和搜索词不能为空', type: 'error' })
+    const iw = normalizeIdentifyWord(newIdentifyWord, identifyWordMultiBrand)
+    if (!iw || kws.length === 0) {
+      addToast({
+        message: identifyWordMultiBrand
+          ? '识别词（品牌，可多个英文逗号分隔）和搜索词不能为空'
+          : '识别词和搜索词不能为空',
+        type: 'error',
+      })
       return
     }
     try {
       if (editingPoolId != null) {
         await updateAppIdentifyPool(editingPoolId, {
-          identify_word: newIdentifyWord.trim(),
+          identify_word: iw,
           keywords: kws,
           prices: prs,
         })
       } else {
-        await createAppIdentifyPool({ identify_word: newIdentifyWord.trim(), keywords: kws, prices: prs })
+        await createAppIdentifyPool({ identify_word: iw, keywords: kws, prices: prs })
       }
       resetForm()
       await load()
@@ -200,7 +219,17 @@ export function AppClickTaskPage({
         <div className="space-y-3 p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/30">
           <h2 className="text-sm font-semibold">识别词管理</h2>
           {editingPoolId != null && <p className="text-xs text-amber-600">正在编辑 ID {editingPoolId}</p>}
-          <input className={inp} placeholder="识别词（品牌）" value={newIdentifyWord} onChange={(e) => setNewIdentifyWord(e.target.value)} />
+          <input
+            className={inp}
+            placeholder={
+              identifyWordMultiBrand ? '识别词（品牌，多个用英文逗号分隔）' : '识别词（品牌）'
+            }
+            value={newIdentifyWord}
+            onChange={(e) => setNewIdentifyWord(e.target.value)}
+          />
+          {identifyWordMultiBrand && (
+            <p className="text-xs text-slate-500">多个品牌用英文逗号分隔，例如：BrandA,BrandB,BrandC</p>
+          )}
           <textarea className={inp} rows={6} placeholder="搜索词（每行一个）" value={newKeywords} onChange={(e) => setNewKeywords(e.target.value)} />
           <input className={inp} placeholder="价格（英文逗号分隔）" value={newPrices} onChange={(e) => setNewPrices(e.target.value)} />
           <div className="flex gap-2">

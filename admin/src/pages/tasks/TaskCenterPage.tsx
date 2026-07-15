@@ -115,6 +115,7 @@ const TYPE_OPTIONS = [
   { value: 'search_click', label: '搜索产品点击' },
   { value: 'search_click_app', label: '全广告品牌黑名单' },
   { value: 'SP常规广告品牌黑名单', label: 'SP常规广告品牌黑名单' },
+  { value: 'SP常规广告品牌白名单', label: 'SP常规广告品牌白名单' },
   { value: 'related_click', label: '相关产品点击' },
   { value: 'similar_click', label: '同类产品点击' },
   { value: 'register', label: '自动注册' },

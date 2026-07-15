@@ -18,7 +18,7 @@ from .totp_qr import decode_totp_secret_from_image_bytes, totp_current_code
 load_dotenv()
 
 CLICK_TASK_TYPES = frozenset({"search_click", "related_click", "similar_click"})
-APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP常规广告品牌黑名单"})
+APP_CLICK_TASK_TYPES = frozenset({"search_click_app", "SP常规广告品牌黑名单", "SP常规广告品牌白名单"})
 ALL_CLICK_TASK_TYPES = CLICK_TASK_TYPES | APP_CLICK_TASK_TYPES
 SIMPLE_TASK_TYPES = frozenset({"generate_new_environment"})
 
@@ -43,6 +43,13 @@ DEFAULT_TASK_SCRIPT_DESCRIPTIONS: dict[str, str] = {
         "【SP 常规广告品牌黑名单】在亚马逊 APP 执行 SP 常规广告点击（无联网检测，按后台时段执行）。"
         "主要步骤：① 打开 AMG 选择环境；② 打开亚马逊 APP 并随机浏览首页；③ 登录账号；"
         "④ 随机关键词搜索浏览并加购；⑤ 按识别词（品牌）、搜索词与价格定位并点击 SP 常规广告，"
+        "详情页浏览约 3 分钟后上报点击。"
+        "共 5 步，单次任务通常需十余分钟。"
+    ),
+    "SP常规广告品牌白名单": (
+        "【SP 常规广告品牌白名单】在亚马逊 APP 执行 SP 常规广告点击（无联网检测，按后台时段执行）。"
+        "主要步骤：① 打开 AMG 选择环境；② 打开亚马逊 APP 并随机浏览首页；③ 登录账号；"
+        "④ 随机关键词搜索浏览并加购；⑤ 按识别词（可多个品牌，英文逗号分隔）、搜索词与价格定位并点击 SP 常规广告，"
         "详情页浏览约 3 分钟后上报点击。"
         "共 5 步，单次任务通常需十余分钟。"
     ),

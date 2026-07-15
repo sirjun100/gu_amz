@@ -24,7 +24,8 @@ var AMZ_MODULE_FILES = [
   "steps/详情页同类推荐广告点击.js",
   "flows/关键词广告点击流程.js",
   "flows/关键词广告点击流程APP.js",
-  "flows/SP常规广告品牌黑名单模式.js",
+  "flows/SP常规广告品牌黑名单.js",
+  "flows/SP常规广告品牌白名单.js",
   "flows/相关商品广告点击流程.js",
   "flows/同行同类广告点击流程.js",
   "flows/生成新环境.js",
@@ -172,6 +173,8 @@ function 执行一条任务(task) {
       关键词广告点击流程APP版本(task);
     } else if (tt === "SP常规广告品牌黑名单") {
       SP常规广告品牌黑名单(task);
+    } else if (tt === "SP常规广告品牌白名单") {
+      SP常规广告品牌白名单(task);
     } else if (tt === "related_click") {
       //相关商品广告点击流程(task);
     } else if (tt === "similar_click") {
